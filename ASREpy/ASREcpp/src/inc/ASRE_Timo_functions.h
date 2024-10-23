@@ -15,6 +15,28 @@ using namespace Eigen;
 // using json = nlohmann::json;
 using namespace std::chrono;
 
+#ifdef _MSVC //Define the macro and DLLMain needed on Windows
+    #include <windows.h>
+    #define DLLEXPORT __declspec(dllexport)
+    BOOL APIENTRY DllMain( HMODULE hModule,
+                        DWORD  ul_reason_for_call,
+                        LPVOID lpReserved
+                        )
+    {
+        switch (ul_reason_for_call)
+        {
+        case DLL_PROCESS_ATTACH:
+        case DLL_THREAD_ATTACH:
+        case DLL_THREAD_DETACH:
+        case DLL_PROCESS_DETACH:
+            break;
+        }
+        return TRUE;
+    }
+#else
+    #define DLLEXPORT __declspec(dllexport)
+#endif
+
 //extern "C" {
 //    __declspec(dllexport) int KBern3D_foot_TIM(double E, double d_foot, double b_foot, double dx, double EGratio,
 //        double ni_str) {
@@ -94,20 +116,25 @@ using namespace std::chrono;
 //    }
 //}
 
+
 MatrixXd KBern3D_foot_TIM(double E, double d_foot, double b_foot, double dx, double EGratio,
         double ni_str) {
         double A = b_foot * d_foot;
         double a = std::max(b_foot, d_foot) / 2;
         double b = std::min(b_foot, d_foot) / 2;
-        double I11 = a * (b * b * b) * ((double)16 / 3 - 3.36 * b / a * (1 - (b * b * b * b) / 12 / (a * a * a * a)));
+        // double I11 = a * (b * b * b) * ((double)16 / 3 - 3.36 * b / a * (1 - (b * b * b * b) / 12 / (a * a * a * a)));
         double I22 = b_foot * pow(d_foot, 3) / 12;
-        double I33 = d_foot * pow(b_foot, 3) / 12;
+        double I33 = d_foot * pow(b_foot, 3) / 12; 
+        double I11 = I22 + I33;
         Vector3d Xi(0, 0, 0);
         Vector3d Xf(dx, 0, 0);
         double L = (Xi - Xf).norm();
         double k = 10 * (1 + ni_str) / (12 + 11 * ni_str);
         double G = E / EGratio;
-        double phi = 12 * E * I22 / k / G / A / (L * L);
+        double phi2 = 12 * E * I22 / k / G / A / (L * L);
+        double phi3 = 12 * E * I33 / k / G / A / (L * L);
+        double phi2Bar = 1/(1+phi2);
+        double phi3Bar = 1/(1+phi3);
         Vector3d Z(0, 0, 1);
         Vector3d x1 = (Xf - Xi) / L;
         Vector3d x2 = Z.cross(x1) / (Z.cross(x1).norm());
@@ -125,47 +152,47 @@ MatrixXd KBern3D_foot_TIM(double E, double d_foot, double b_foot, double dx, dou
         MatrixXd K = MatrixXd::Zero(12, 12);
         K(0, 0) = E * A / L;
         K(0, 6) = (-1) * E * A / L;
-        K(1, 1) = 12 * E * I33 / pow(L, 3);
-        K(1, 5) = 6 * E * I33 / pow(L, 2);
-        K(1, 7) = -12 * E * I33 / pow(L, 3);
-        K(1, 11) = 6 * E * I33 / pow(L, 2);
-        K(2, 2) = 12 * E * I22 / pow(L, 3) / (1 + phi);
-        K(2, 4) = -6 * E * I22 / pow(L, 2) / (1 + phi);
-        K(2, 8) = -12 * E * I22 / pow(L, 3) / (1 + phi);
-        K(2, 10) = -6 * E * I22 / pow(L, 2) / (1 + phi);
-        K(3, 3) = G * I11 / L / 1e10;
-        K(3, 9) = (-1) * G * I11 / L / 1e10;
-        K(4, 2) = -6 * E * I22 / pow(L, 2) / (1 + phi);
-        K(4, 4) = (4 + phi) * E * I22 / L / (1 + phi);
-        K(4, 8) = 6 * E * I22 / pow(L, 2) / (1 + phi);
-        K(4, 10) = (2 - phi) * E * I22 / L / (1 + phi);
-        K(5, 1) = 6 * E * I33 / pow(L, 2);
-        K(5, 5) = 4 * E * I33 / L;
-        K(5, 7) = -6 * E * I33 / pow(L, 2);
-        K(5, 11) = 2 * E * I33 / L;
+        K(1, 1) = 12 * E * I33 * phi3Bar/ pow(L, 3);
+        K(1, 5) = 6 * E * I33 *phi3Bar/ pow(L, 2);
+        K(1, 7) = -12 * E * I33 *phi3Bar/ pow(L, 3);
+        K(1, 11) = 6 * E * I33 *phi3Bar/ pow(L, 2);
+        K(2, 2) = 12 * E * I22 / pow(L, 3) * phi2Bar;
+        K(2, 4) = -6 * E * I22 / pow(L, 2) * phi2Bar;
+        K(2, 8) = -12 * E * I22 / pow(L, 3) * phi2Bar;
+        K(2, 10) = -6 * E * I22 / pow(L, 2) * phi2Bar;
+        K(3, 3) = G * I11 / L;
+        K(3, 9) = (-1) * G * I11 / L;
+        K(4, 2) = -6 * E * I22 / pow(L, 2) * phi2Bar;
+        K(4, 4) = (4 + phi2) * E * I22 / L * phi2Bar;
+        K(4, 8) = 6 * E * I22 / pow(L, 2) * phi2Bar;
+        K(4, 10) = (2 - phi2) * E * I22 / L * phi2Bar;
+        K(5, 1) = 6 * E * I33 *phi3Bar/ pow(L, 2);
+        K(5, 5) = (4 + phi3) * phi3Bar * E * I33 / L;
+        K(5, 7) = -6 * phi3Bar *E * I33 / pow(L, 2);
+        K(5, 11) = (2 - phi3) * phi3Bar * E * I33 / L;
         K(6, 0) = -1 * E * A / L;
         K(6, 6) = E * A / L;
-        K(7, 1) = -12 * E * I33 / pow(L, 3);
-        K(7, 5) = -6 * E * I33 / pow(L, 2);
-        K(7, 7) = 12 * E * I33 / pow(L, 3);
-        K(7, 11) = -6 * E * I33 / pow(L, 2);
-        K(8, 2) = -12 * E * I22 / pow(L, 3) / (1 + phi);
-        K(8, 4) = 6 * E * I22 / pow(L, 2) / (1 + phi);
-        K(8, 8) = 12 * E * I22 / pow(L, 3) / (1 + phi);
-        K(8, 10) = 6 * E * I22 / pow(L, 2) / (1 + phi);
+        K(7, 1) = -12 * E * I33 * phi3Bar/ pow(L, 3);
+        K(7, 5) = -6 * E * I33 * phi3Bar/ pow(L, 2);
+        K(7, 7) = 12 * E * I33 * phi3Bar/ pow(L, 3);
+        K(7, 11) = -6 * E * I33 *phi3Bar/ pow(L, 2);
+        K(8, 2) = -12 * E * I22 * phi2Bar/ pow(L, 3);
+        K(8, 4) = 6 * E * I22 / pow(L, 2) *phi2Bar;
+        K(8, 8) = 12 * E * I22 / pow(L, 3) *phi2Bar;
+        K(8, 10) = 6 * E * I22 / pow(L, 2) * phi2Bar;
 
-        K(9, 3) = -1 * G * I11 / L / 1e10;
-        K(9, 9) = G * I11 / L / 1e10;
+        K(9, 3) = -1 * G * I11 / L;
+        K(9, 9) = G * I11 / L;
 
-        K(10, 2) = -6 * E * I22 / pow(L, 2) / (1 + phi);
-        K(10, 4) = (2 - phi) * E * I22 / L / (1 + phi);
-        K(10, 8) = 6 * E * I22 / pow(L, 2) / (1 + phi);
-        K(10, 10) = (4 + phi) * E * I22 / L / (1 + phi);
+        K(10, 2) = -6 * E * I22 / pow(L, 2) * phi2Bar;
+        K(10, 4) = (2 - phi2) * E * I22 / L * phi2Bar;
+        K(10, 8) = 6 * E * I22 / pow(L, 2) * phi2Bar;
+        K(10, 10) = (4 + phi2) * E * I22 / L * phi2Bar;
 
-        K(11, 1) = 6 * E * I33 / pow(L, 2);
-        K(11, 5) = 2 * E * I33 / L;
-        K(11, 7) = -6 * E * I33 / pow(L, 2);
-        K(11, 11) = 4 * E * I33 / L;
+        K(11, 1) = 6 * E *phi3Bar * I33 / pow(L, 2);
+        K(11, 5) = (2 - phi3) * phi3Bar * E * I33 / L;
+        K(11, 7) = -6 * phi3Bar * E * I33 / pow(L, 2);
+        K(11, 11) = (4 + phi3) * E * phi3Bar * I33 / L;
 
         MatrixXd Kelem = MatRot.transpose() * K * MatRot;
         return Kelem;
@@ -251,7 +278,7 @@ void f_int_mind_dz_q(const VectorXd& u, VectorXd v, VectorXd w, VectorXd x, Vect
 
 }
 
-
+// Disp at point i when uniform force applied around point j
 MatrixXd int_factor_mindlin_j_1_vect_Vasiri(const VectorXd& Xi, VectorXd Yi,
     VectorXd Zi, VectorXd Xj, VectorXd Yj, VectorXd Zj, double Gs, double Es,
     int nnodes_foot, double nis, double h_el_foot, double bfoot) {
@@ -364,7 +391,7 @@ MatrixXd int_factor_mindlin_j_3_vect_Vasiri(VectorXd Xi, VectorXd Yi,
     return result;
 }
 
-MatrixXd calFlexVaziri(VectorXd Zi_nod, VectorXd Xi_nod, VectorXd Yi_nod, double Es,
+MatrixXd _calFlexVaziri(VectorXd Zi_nod, VectorXd Xi_nod, VectorXd Yi_nod, double Es,
     int nnodes, double h_el_foot, double nis, double bfoot) {
     MatrixXd FLEX = MatrixXd::Zero(nnodes * 3, nnodes * 3);
     double Gs = Es / 2 / (1 + nis);
@@ -403,8 +430,58 @@ MatrixXd calFlexVaziri(VectorXd Zi_nod, VectorXd Xi_nod, VectorXd Yi_nod, double
     FLEX(1 + (nnodes - 1) * 3, 1 + (nnodes - 1) * 3) *= r2;
     FLEX(2 + (nnodes - 1) * 3, 2 + (nnodes - 1) * 3) *= r3;
     return FLEX;
-
 }
+
+extern "C" {
+    // Export calFlex
+    DLLEXPORT double* calFlexVaziri(double* Zi, double* Xi, double* Yi, double Es,
+        int nnodes, double* h_el_foot, double nis, double* bfoot) {
+
+        // Convert array to vector
+        VectorXd Zi_nod = Eigen::Map<VectorXd>(Zi, nnodes);
+        VectorXd Xi_nod = Eigen::Map<VectorXd>(Xi, nnodes);
+        VectorXd Yi_nod = Eigen::Map<VectorXd>(Yi, nnodes);
+
+        MatrixXd FLEX = MatrixXd::Zero(nnodes * 3, nnodes * 3);
+        double Gs = Es / 2 / (1 + nis);
+        for (int i = 0; i < nnodes; i++) {
+            VectorXd Zj_nod = VectorXd::Ones(nnodes) * Zi_nod(i);
+            VectorXd Xj_nod = VectorXd::Ones(nnodes) * Xi_nod(i);
+            VectorXd Yj_nod = VectorXd::Ones(nnodes) * Yi_nod(i);
+
+            MatrixXd uij_1 = int_factor_mindlin_j_1_vect_Vasiri(Xi_nod, Yi_nod, Zi_nod,
+                Xj_nod, Yj_nod, Zj_nod, Gs, Es, nnodes, nis, h_el_foot[i], bfoot[i]);
+            MatrixXd uij_2 = int_factor_mindlin_j_2_vect_Vasiri(Xi_nod, Yi_nod, Zi_nod,
+                Xj_nod, Yj_nod, Zj_nod, Gs, Es, nnodes, nis, h_el_foot[i], bfoot[i]);
+            MatrixXd uij_3 = int_factor_mindlin_j_3_vect_Vasiri(Xi_nod, Yi_nod, Zi_nod,
+                Xj_nod, Yj_nod, Zj_nod, Gs, Es, nnodes, nis, h_el_foot[i], bfoot[i]);
+            //cout<<uij_3<<endl;
+            FLEX(seq(0, nnodes * 3 - 1, 3), i * 3) = uij_1.col(0);
+            FLEX(seq(1, nnodes * 3 - 1, 3), i * 3) = uij_1.col(1);
+            FLEX(seq(2, nnodes * 3 - 1, 3), i * 3) = uij_1.col(2);
+
+            FLEX(seq(0, nnodes * 3 - 1, 3), i * 3 + 1) = uij_2.col(0);
+            FLEX(seq(1, nnodes * 3 - 1, 3), i * 3 + 1) = uij_2.col(1);
+            FLEX(seq(2, nnodes * 3 - 1, 3), i * 3 + 1) = uij_2.col(2);
+
+            FLEX(seq(0, nnodes * 3 - 1, 3), i * 3 + 2) = uij_3.col(0);
+            FLEX(seq(1, nnodes * 3 - 1, 3), i * 3 + 2) = uij_3.col(1);
+            FLEX(seq(2, nnodes * 3 - 1, 3), i * 3 + 2) = uij_3.col(2);
+        }
+        // double r1 = -0.3136 * exp(-0.531 * (h_el_foot / bfoot)) + 0.2174 * pow(h_el_foot / bfoot, 0.1755) + 1.327;
+        // double r2 = -0.3136 * exp(-0.531 * (bfoot / h_el_foot)) + 0.2174 * pow(bfoot / h_el_foot, 0.1755) + 1.327;
+        // double r3 = r1;
+
+        // FLEX(0, 0) *= r1;
+        // FLEX(1, 1) *= r2;
+        // FLEX(2, 2) *= r3;
+        // FLEX((nnodes - 1) * 3, (nnodes - 1) * 3) *= r1;
+        // FLEX(1 + (nnodes - 1) * 3, 1 + (nnodes - 1) * 3) *= r2;
+        // FLEX(2 + (nnodes - 1) * 3, 2 + (nnodes - 1) * 3) *= r3;
+        std::cout<<FLEX<<std::endl;
+        return FLEX.data();
+    }
+}    
 
 void soilsprings_static_foot_gazetas(double* ptr_kh_gazetas, double* ptr_kv_gazetas, double Es, double nis, double bfoot, double h_el_foot) {
     double Gs = Es / 2 / (1 + nis);
@@ -1039,6 +1116,5 @@ VectorXd calculateStrain(VectorXd* F_S_deltaT_el_ptr, VectorXd* F_M_deltaT_el_pt
     result(1) = epsilon_br_bot.maxCoeff();
     result(2) = epsilon_dr.maxCoeff();
     return result;
-
 }
 #endif

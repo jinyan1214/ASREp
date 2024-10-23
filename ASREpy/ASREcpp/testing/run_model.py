@@ -262,7 +262,7 @@ if __name__=="__main__":
     beamY = np.zeros_like(beamX)
     beamZ = np.zeros_like(beamX)
     Eb = 70e9
-    EoverG = 0.001 # Assume very large G to model the Euler–Bernoulli beam used in Franza and DeJong
+    EoverG = 2.6 # Assume very large G to model the Euler–Bernoulli beam used in Franza and DeJong
     qfoot = 3.2*10*1000
     Es = 25e6
     nis = 0.25

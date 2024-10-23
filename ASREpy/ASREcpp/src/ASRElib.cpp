@@ -5,34 +5,31 @@
 #include "ASRE_Timo_functions.h"
 #include <cstring>
 
-#ifdef _MSVC //Define the macro and DLLMain needed on Windows
-    #include <windows.h>
-    #define DLLEXPORT __declspec(dllexport)
-    BOOL APIENTRY DllMain( HMODULE hModule,
-                        DWORD  ul_reason_for_call,
-                        LPVOID lpReserved
-                        )
-    {
-        switch (ul_reason_for_call)
-        {
-        case DLL_PROCESS_ATTACH:
-        case DLL_THREAD_ATTACH:
-        case DLL_THREAD_DETACH:
-        case DLL_PROCESS_DETACH:
-            break;
-        }
-        return TRUE;
-    }
-#else
-    #define DLLEXPORT __declspec(dllexport)
-#endif
+// #ifdef _MSVC //Define the macro and DLLMain needed on Windows
+//     #include <windows.h>
+//     #define DLLEXPORT __declspec(dllexport)
+//     BOOL APIENTRY DllMain( HMODULE hModule,
+//                         DWORD  ul_reason_for_call,
+//                         LPVOID lpReserved
+//                         )
+//     {
+//         switch (ul_reason_for_call)
+//         {
+//         case DLL_PROCESS_ATTACH:
+//         case DLL_THREAD_ATTACH:
+//         case DLL_THREAD_DETACH:
+//         case DLL_PROCESS_DETACH:
+//             break;
+//         }
+//         return TRUE;
+//     }
+// #else
+//     #define DLLEXPORT __declspec(dllexport)
+// #endif
 
 // #define PRINT_INT_RESULTS //Print intermideiate result is defined
 
 extern "C" {
-    DLLEXPORT void printName(){
-        std::cout << "Printing from ASRElib.dll" << std::endl;
-    }
 
     //__declspec(dllexport) int run() {
     DLLEXPORT double* run(int nnode, double* meshX, double* meshY, double* meshZ, double* dispV, double* dispL, double* dispT,
@@ -83,9 +80,13 @@ extern "C" {
                 KKfoot(seq((i) * 6, (i) * 6 + 11, 1),
                     seq((i) * 6, (i) * 6 + 11, 1)) + KBern3Delt;
         }
+
+        std::cout << "KKfoot: " << std::endl;
+        std::cout << KKfoot << std::endl;
+        
         double dx = std::sqrt((meshX[0] - meshX[0 + 1]) * (meshX[0] - meshX[0 + 1]) + (meshY[0] - meshY[0 + 1]) * (meshY[0] - meshY[0 + 1]));
         
-        MatrixXd FLEX_3DOF = calFlexVaziri(z_global_foot, x_global_foot, y_global_foot, EsNominal, nnode, h_el_foot, nis, bfoot);
+        MatrixXd FLEX_3DOF = _calFlexVaziri(z_global_foot, x_global_foot, y_global_foot, EsNominal, nnode, h_el_foot, nis, bfoot);
 
         double kh_gazetas;
         double kv_gazetas;
