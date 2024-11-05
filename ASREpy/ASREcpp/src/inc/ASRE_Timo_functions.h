@@ -15,25 +15,26 @@ using namespace Eigen;
 // using json = nlohmann::json;
 using namespace std::chrono;
 
-#if defined _MSVC //Define the macro and DLLMain needed on Windows
-    #include <windows.h>
+// #if defined _MSVC //Define the macro and DLLMain needed on Windows
+#if defined(_MSVC)
+    // #include <windows.h>
     #define DLLEXPORT __declspec(dllexport)
-    BOOL APIENTRY DllMain( HMODULE hModule,
-                        DWORD  ul_reason_for_call,
-                        LPVOID lpReserved
-                        )
-    {
-        switch (ul_reason_for_call)
-        {
-        case DLL_PROCESS_ATTACH:
-        case DLL_THREAD_ATTACH:
-        case DLL_THREAD_DETACH:
-        case DLL_PROCESS_DETACH:
-            break;
-        }
-        return TRUE;
-    }
-#elif defined _GNC
+    // BOOL APIENTRY DllMain( HMODULE hModule,
+    //                     DWORD  ul_reason_for_call,
+    //                     LPVOID lpReserved
+    //                     )
+    // {
+    //     switch (ul_reason_for_call)
+    //     {
+    //     case DLL_PROCESS_ATTACH:
+    //     case DLL_THREAD_ATTACH:
+    //     case DLL_THREAD_DETACH:
+    //     case DLL_PROCESS_DETACH:
+    //         break;
+    //     }
+    //     return TRUE;
+    // }
+#elif defined(_GNC)
     //  GCC
     #define DLLEXPORT __attribute__((visibility("default")))
     #define DLLIMPORT
@@ -42,6 +43,18 @@ using namespace std::chrono;
     #define DLLIMPORT
     #pragma warning Unknown dynamic link import/export semantics.
 #endif
+
+// extern "C" {
+
+//     //__declspec(dllexport) int run() {
+//     DLLEXPORT int run(int nnode, double* meshX, double* meshY, double* meshZ, double* dispV, double* dispL, double* dispT,
+//         double Eb, double EoverG, double EsNominal, double nis, double dfoot, double bfoot, double ni_foot, double mu_int, double qz_foot,
+//         const char* solver,
+//         const char* output,
+//         double* result_array,
+//         int result_size
+//         );
+//     }
 
 //extern "C" {
 //    __declspec(dllexport) int KBern3D_foot_TIM(double E, double d_foot, double b_foot, double dx, double EGratio,

@@ -22,19 +22,19 @@ target_link_libraries(ASRElib PRIVATE Eigen)
 
 get_filename_component(parent_dir "${CMAKE_CURRENT_SOURCE_DIR}" DIRECTORY)
 
-# If Windows add a MACRO _MSCV
+# If Windows add a MACRO _MSVC
 IF(MSVC AND "${CMAKE_VS_PLATFORM_NAME}" MATCHES "(x64)")
     message("   ************************************")
     message("   Compiling on x64 Windows using MSVC")
     message("   ************************************")
-    target_compile_definitions(ASRElib PRIVATE _MSCV)
+    target_compile_definitions(ASRElib PRIVATE _MSVC)
     # Define the dir to install the compiled dll
     install( TARGETS ASRElib DESTINATION "${parent_dir}/bin/win32")
 ELSEIF(MSVC)
     message("   ************************************")
     message("   Compiling on ${CMAKE_VS_PLATFORM_NAME} Windows using MSVC")
     message("   ************************************")
-    target_compile_definitions(ASRElib PRIVATE _MSCV)
+    target_compile_definitions(ASRElib PRIVATE _MSVC)
     install( TARGETS ASRElib DESTINATION "${parent_dir}/bin/win32")
 ELSEIF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     message("   ************************************")
