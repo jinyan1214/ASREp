@@ -2,6 +2,7 @@ from sys import platform as pltm
 import os, platform, pkg_resources
 from ctypes import CDLL, c_int, c_double, c_char_p, POINTER
 import numpy as np
+import json
 import _ctypes
 
 class ASRE_Timoshenko_model:
@@ -38,7 +39,7 @@ class ASRE_Timoshenko_model:
         The friction coefficient between soil and beam. Unit: unitless
     """
 
-    def __init__(self, nnode, meshX, meshY, meshZ, dfoot, bfoot):
+    def __init__(self, nnode, meshX, meshY, meshZ, dfoot, bfoot, solver = 'elasto-plastic'):
         """
         Constructs the beam with dimension properties.
 
@@ -56,6 +57,9 @@ class ASRE_Timoshenko_model:
             The depth of the beam. Unit: m
         bfoot : float
             The width of the beam. Unit: m
+        solver : str
+            The solver used in the model. Default is 'elasto-plastic'.
+            Another option is 'elastic'.
         """
         self.nnode = nnode
         self.meshX = meshX
@@ -64,6 +68,7 @@ class ASRE_Timoshenko_model:
         self.dfoot = dfoot
         self.bfoot = bfoot
         self.asre_dll = self._import_dll()
+        self.solver = solver
 
     def _import_dll(self):
         """
@@ -83,7 +88,7 @@ class ASRE_Timoshenko_model:
                                         "lib/macOS_m1/ASRElib.so"))
             else:
                 c_lib = CDLL(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                        "lib/macOS/ASRElib.so"))
+                                        "ASREcpp", "bin", "macOS", "libASRElib.dylib"))
         elif pltm == "win32":
             c_lib = CDLL(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                     "ASREcpp", "bin", "win32", "ASRElib.dll"))
@@ -105,10 +110,12 @@ class ASRE_Timoshenko_model:
                               c_double, #ni_foot
                               c_double, #mu_int
                               c_double, #qz_foot
+                              c_char_p, #solver
                               c_char_p, #output
-                                #   POINTER(c_double)
-                                #   np.ctypeslib.ndpointer(dtype=np.float64)
+                                  POINTER(c_double), # result
+                                  c_int # result_size
                             ]
+        c_lib.run.restype = c_int
         return c_lib
 
     def set_beam_properties(self, Eb, EoverG, q_foot):
@@ -175,35 +182,40 @@ class ASRE_Timoshenko_model:
         """
         self.ouput = output
         if self.ouput == 'disp':
-            self.asre_dll.run.restype = POINTER(c_double * (self.nnode * 6))
+            result_size = self.nnode * 6
+            self.result_array_ptr = (c_double * result_size)(*([0]*result_size))
         elif self.ouput == 'strain':
-            self.asre_dll.run.restype = POINTER(c_double * 3)
+            result_size = 3
+            self.result_array_ptr = (c_double * result_size)(*([0]*result_size))
         elif self.ouput == 'strain+disp':
-            self.asre_dll.run.restype = POINTER(c_double * (3 + self.nnode * 6))
+            result_size = 3 + self.nnode * 6
+            self.result_array_ptr = (c_double * result_size)(*([0]*result_size))
         else:
             raise ValueError(f'output value {output} is not permitted in ASRE_Timoshenko_model')
         
         self.ouput = self.ouput.encode('utf-8')
+        self.solver = self.solver.encode('utf-8')
         try:
             result = self.asre_dll.run(self.nnode, self.meshX, self.meshY, self.meshZ,
                                        dispV, dispL, dispT, self.Eb, self.EoverG,
                                        self.EsNominal, self.nis, self.dfoot,
                                        self.bfoot, self.ni_foot, self.mu_int,
-                                       self.q_foot, self.ouput)
-            result_list = [i for i in result.contents]
-            result_array = np.array(result_list)
+                                       self.q_foot, self.solver, self.ouput,
+                                       self.result_array_ptr, result_size)
+            self.result = result
+            self.result_array_ptr = np.array(list(self.result_array_ptr))
             if self.ouput.decode('utf-8') == 'disp':
-                self.beam_DispL = result_array[0::6]
-                self.beam_DispT = result_array[1::6]
-                self.beam_DispV = result_array[2::6]
-                self.beam_RotaL = result_array[3::6]
-                self.beam_RotaT = result_array[4::6]
-                self.beam_RotaV = result_array[5::6]
+                self.beam_DispL = self.result_array_ptr[0::6]
+                self.beam_DispT = self.result_array_ptr[1::6]
+                self.beam_DispV = self.result_array_ptr[2::6]
+                self.beam_RotaL = self.result_array_ptr[3::6]
+                self.beam_RotaT = self.result_array_ptr[4::6]
+                self.beam_RotaV = self.result_array_ptr[5::6]
             elif self.ouput.decode('utf-8') == 'strain':
-                self.beam_p_strains = result_array
+                self.beam_p_strains = self.result_array_ptr
             elif self.ouput.decode('utf-8') == 'strain+disp':
-                self.beam_p_strains = result_array[0:3]
-                result_array = result_array[3:]
+                self.beam_p_strains = self.result_array_ptr[0:3]
+                result_array = self.result_array_ptr[3:]
                 self.beam_DispL = result_array[0::6]
                 self.beam_DispT = result_array[1::6]
                 self.beam_DispV = result_array[2::6]
@@ -214,6 +226,35 @@ class ASRE_Timoshenko_model:
         except:
             self.release_cdll_handle()
             raise RuntimeError(f'ASRE_Timoshenko_model failed to run the ASRE cpp library')
+    def _write_input_file(self,  dispL, dispT, dispV, output = 'disp',
+                          folder=None, filename=None):
+        if filename is None:
+            filename = 'input.json'
+        if folder is None:
+            folder = os.getcwd()
+        input_json = {
+            'nnode': self.nnode,
+            'meshX': self.meshX.tolist(),
+            'meshY': self.meshY.tolist(),
+            'meshZ': self.meshZ.tolist(),
+            'dispL': dispL.tolist(),
+            'dispT': dispT.tolist(),
+            'dispV': dispV.tolist(),
+            'Eb': self.Eb,
+            'EoverG': self.EoverG,
+            'EsNominal': self.EsNominal,
+            'nis': self.nis,
+            'dfoot': self.dfoot,
+            'bfoot': self.bfoot,
+            'ni_foot': self.ni_foot,
+            'mu_int': self.mu_int,
+            'q_foot': self.q_foot,
+            'solver': self.solver,
+            'output': output
+        }
+        with open(os.path.join(folder, filename), 'w') as f:
+            json.dump(input_json, f, indent=2)
+        return os.path.join(folder, filename)
     
     def release_cdll_handle(self):
         if self.asre_dll is None:

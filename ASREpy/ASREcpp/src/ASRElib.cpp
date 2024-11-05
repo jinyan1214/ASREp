@@ -27,14 +27,15 @@
 //     #define DLLEXPORT __declspec(dllexport)
 // #endif
 
-// #define PRINT_INT_RESULTS //Print intermideiate result is defined
-
 extern "C" {
 
     //__declspec(dllexport) int run() {
-    DLLEXPORT double* run(int nnode, double* meshX, double* meshY, double* meshZ, double* dispV, double* dispL, double* dispT,
+    DLLEXPORT int run(int nnode, double* meshX, double* meshY, double* meshZ, double* dispV, double* dispL, double* dispT,
         double Eb, double EoverG, double EsNominal, double nis, double dfoot, double bfoot, double ni_foot, double mu_int, double qz_foot,
-        const char* output
+        const char* solver,
+        const char* output,
+        double* result_array,
+        int result_size
         ) {
 
         #ifdef PRINT_INT_RESULTS
@@ -81,8 +82,10 @@ extern "C" {
                     seq((i) * 6, (i) * 6 + 11, 1)) + KBern3Delt;
         }
 
+        #ifdef PRINT_INT_RESULTS
         std::cout << "KKfoot: " << std::endl;
         std::cout << KKfoot << std::endl;
+        #endif
         
         double dx = std::sqrt((meshX[0] - meshX[0 + 1]) * (meshX[0] - meshX[0 + 1]) + (meshY[0] - meshY[0 + 1]) * (meshY[0] - meshY[0 + 1]));
         
@@ -125,79 +128,96 @@ extern "C" {
         PartialPivLU<MatrixXd> lu = PartialPivLU<MatrixXd>(Amatrix);
         VectorXd u_P_el = lu.solve(P_el);
         Amatrix.resize(0, 0);
-
         #ifdef PRINT_INT_RESULTS
         //std::cout << "u_P_el: " << std::endl;
         //std::cout << u_P_el << std::endl;
         #endif
 
-        //Elastic solution
-        #ifdef PRINT_INT_RESULTS
-        //std::cout << "KKfoot: " << std::endl;
-        //std::cout << KKfoot << std::endl;
-        //std::cout << "Ks: " << std::endl;
-        //std::cout << Ks << std::endl;
-        #endif
-        VectorXd u_cat_el = lu.solve(P_el + Ks * ucat);
 
-        #ifdef PRINT_INT_RESULTS
-        //std::cout << "u_cat_el: " << std::endl;
-        //std::cout << u_cat_el << std::endl;
-        #endif
-        
 
-        //Prepare for elastioPlaticIteration to solve ucat induced displacement
-        VectorXd Kstar = VectorXd::Zero(nnode * 6);
-        MatrixXd Lstar = MatrixXd::Zero(nnode * 6, nnode * 6);
-        Lstar = FLEX;
-        MatrixXd Stiffness = KKfoot;
-        for (int i = 0; i < nnode; i++) {
-            Kstar(i * 6 + 0) = 1.0 / FLEX(i * 6+0, i * 6 + 0);
-            Kstar(i * 6 + 1) = 1.0 / FLEX(i * 6 + 1, i * 6 + 1);
-            Kstar(i * 6 + 2) = 1.0 / FLEX(i * 6 + 2, i * 6 + 2);
-            Kstar(i * 6 + 3) = 1.0 / FLEX(i * 6 + 3, i * 6 + 3);
-            Lstar(i * 6 + 0, i * 6 + 0) = 0.0;
-            Lstar(i * 6 + 1, i * 6 + 1) = 0.0;
-            Lstar(i * 6 + 2, i * 6 + 2) = 0.0;
-            Lstar(i * 6 + 3, i * 6 + 3) = 0.0;
-            Stiffness(i * 6 + 0, i * 6 + 0) += Kstar(i * 6 + 0);
-            Stiffness(i * 6 + 1, i * 6 + 1) += Kstar(i * 6 + 1);
-            Stiffness(i * 6 + 2, i * 6 + 2) += Kstar(i * 6 + 2);
-            Stiffness(i * 6 + 3, i * 6 + 3) += Kstar(i * 6 + 3);
+        VectorXd uinc;
+
+        if (strcmp(solver, "elastic") == 0){
+            //Elastic solution
+            #ifdef PRINT_INT_RESULTS
+            // std::cout << "elastic" << std::endl;
+            //std::cout << "KKfoot: " << std::endl;
+            //std::cout << KKfoot << std::endl;
+            //std::cout << "Ks: " << std::endl;
+            //std::cout << Ks << std::endl;
+            #endif
+            VectorXd u_cat_el = lu.solve(P_el + Ks * ucat);
+
+            #ifdef PRINT_INT_RESULTS
+            //std::cout << "u_cat_el: " << std::endl;
+            //std::cout << u_cat_el << std::endl;
+            #endif
+            uinc = u_cat_el;
+        } else if (strcmp(solver, "elasto-plastic") == 0) {
+            //Prepare for elastioPlaticIteration to solve ucat induced displacement
+            #ifdef PRINT_INT_RESULTS
+            std::cout << "elasto-plastic" << std::endl;
+            #endif
+            VectorXd Kstar = VectorXd::Zero(nnode * 6);
+            MatrixXd Lstar = MatrixXd::Zero(nnode * 6, nnode * 6);
+            Lstar = FLEX;
+            MatrixXd Stiffness = KKfoot;
+            for (int i = 0; i < nnode; i++) {
+                Kstar(i * 6 + 0) = 1.0 / FLEX(i * 6+0, i * 6 + 0);
+                Kstar(i * 6 + 1) = 1.0 / FLEX(i * 6 + 1, i * 6 + 1);
+                Kstar(i * 6 + 2) = 1.0 / FLEX(i * 6 + 2, i * 6 + 2);
+                Kstar(i * 6 + 3) = 1.0 / FLEX(i * 6 + 3, i * 6 + 3);
+                Lstar(i * 6 + 0, i * 6 + 0) = 0.0;
+                Lstar(i * 6 + 1, i * 6 + 1) = 0.0;
+                Lstar(i * 6 + 2, i * 6 + 2) = 0.0;
+                Lstar(i * 6 + 3, i * 6 + 3) = 0.0;
+                Stiffness(i * 6 + 0, i * 6 + 0) += Kstar(i * 6 + 0);
+                Stiffness(i * 6 + 1, i * 6 + 1) += Kstar(i * 6 + 1);
+                Stiffness(i * 6 + 2, i * 6 + 2) += Kstar(i * 6 + 2);
+                Stiffness(i * 6 + 3, i * 6 + 3) += Kstar(i * 6 + 3);
+            }
+
+                #ifdef PRINT_INT_RESULTS
+                /*std::cout << "Kstar: " << std::endl;
+                std::cout << Kstar << std::endl;
+                std::cout << "Lstar: " << std::endl;
+                std::cout << Lstar << std::endl;
+                std::cout << "Stiffness: " << std::endl;
+                std::cout << Stiffness << std::endl;*/
+                #endif
+
+            uinc = u_P_el;
+            VectorXd uip = VectorXd::Zero(uinc.size());
+            double lim_t_int = 0;
+            double lim_c_int = INFINITY;
+
+            #ifdef PRINT_INT_RESULTS
+            /*std::cout << "ucat: " << std::endl;
+            std::cout << ucat << std::endl;*/
+            #endif
+            elastoPlasticIterationLDLT(Stiffness, KKfoot, Kstar,
+                FLEX, Lstar, uinc, ucat, P_el,
+                mu_int, lim_t_int, lim_c_int,
+                h_el_foot * bfoot,
+                uip);
+            
+            #ifdef PRINT_INT_RESULTS
+            /*std::cout << "uinc-u_P_el" << std::endl;
+            std::cout << uinc-u_P_el << std::endl;*/
+            #endif
+        } else {
+            std::cout << "Invalid solver type" << std::endl;
+            return -1;
         }
-
-        #ifdef PRINT_INT_RESULTS
-        /*std::cout << "Kstar: " << std::endl;
-        std::cout << Kstar << std::endl;
-        std::cout << "Lstar: " << std::endl;
-        std::cout << Lstar << std::endl;
-        std::cout << "Stiffness: " << std::endl;
-        std::cout << Stiffness << std::endl;*/
-        #endif
-
-        VectorXd uinc = u_P_el;
-        VectorXd uip = VectorXd::Zero(uinc.size());
-        double lim_t_int = 0;
-        double lim_c_int = INFINITY;
-
-        #ifdef PRINT_INT_RESULTS
-        /*std::cout << "ucat: " << std::endl;
-        std::cout << ucat << std::endl;*/
-        #endif
-        elastoPlasticIterationLDLT(Stiffness, KKfoot, Kstar,
-            FLEX, Lstar, uinc, ucat, P_el,
-            mu_int, lim_t_int, lim_c_int,
-            h_el_foot * bfoot,
-            uip);
-        
-        #ifdef PRINT_INT_RESULTS
-        /*std::cout << "uinc-u_P_el" << std::endl;
-        std::cout << uinc-u_P_el << std::endl;*/
-        #endif
         
         if (strcmp(output, "disp") == 0) {
             VectorXd result = uinc-u_P_el;
-            return result.data();
+            // for (int i=0; i < result.size(); i++) {
+            //     // std::cout << result(i) <<"," <<result.data()[i] << std::endl;
+            //     result_array[i] = result(i);
+            // }
+            std::copy(result.data(), result.data() + result.size(), result_array);
+            return 0;
         } else if (strcmp(output, "strain") == 0) {
             VectorXd F_M_deltaT_el_M, F_N_deltaT_el_M, F_S_deltaT_el_M;
             calInternalForces(&F_M_deltaT_el_M, &F_N_deltaT_el_M, &F_S_deltaT_el_M,
@@ -205,7 +225,8 @@ extern "C" {
             VectorXd epsilon_vector = calculateStrain(&F_S_deltaT_el_M, &F_M_deltaT_el_M,
                     &F_N_deltaT_el_M, Eb, EoverG, bfoot, dfoot, ni_foot);
             VectorXd result = epsilon_vector;
-            return result.data();
+            std::copy(result.data(), result.data() + result.size(), result_array);
+            return 0;
         } else if (strcmp(output, "strain+disp") == 0) {
             VectorXd F_M_deltaT_el_M, F_N_deltaT_el_M, F_S_deltaT_el_M;
             calInternalForces(&F_M_deltaT_el_M, &F_N_deltaT_el_M, &F_S_deltaT_el_M,
@@ -216,9 +237,10 @@ extern "C" {
             VectorXd disp = uinc - u_P_el;
             VectorXd result(strain.size() + disp.size());
             result << strain, disp;
-            return result.data();
+            std::copy(result.data(), result.data() + result.size(), result_array);
+            return 0;
         } else {
-            return new double[1];
+            return -1;
         }
         
         

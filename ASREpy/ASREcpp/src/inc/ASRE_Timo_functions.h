@@ -15,7 +15,7 @@ using namespace Eigen;
 // using json = nlohmann::json;
 using namespace std::chrono;
 
-#ifdef _MSVC //Define the macro and DLLMain needed on Windows
+#if defined _MSVC //Define the macro and DLLMain needed on Windows
     #include <windows.h>
     #define DLLEXPORT __declspec(dllexport)
     BOOL APIENTRY DllMain( HMODULE hModule,
@@ -33,8 +33,14 @@ using namespace std::chrono;
         }
         return TRUE;
     }
+#elif defined _GNC
+    //  GCC
+    #define DLLEXPORT __attribute__((visibility("default")))
+    #define DLLIMPORT
 #else
-    #define DLLEXPORT __declspec(dllexport)
+    #define DLLEXPORT
+    #define DLLIMPORT
+    #pragma warning Unknown dynamic link import/export semantics.
 #endif
 
 //extern "C" {

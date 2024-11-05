@@ -1,7 +1,8 @@
 from setuptools import setup, find_packages
 import os
 
-ASREwinlib = os.path.join("ASREcpp", "bin", "win32", "ASRElib.dll")
+ASREwinlib = os.path.join("ASREpy","ASREcpp", "bin", "win32", "ASRElib.dll")
+ASREmacOSlib = os.path.join("ASREpy","ASREcpp", "bin", "macOS", "libASRElib.dylib")
 
 setup(
     name="ASREpy",
@@ -25,7 +26,13 @@ setup(
     ],
     # scripts=[ASREwinlib],
     include_package_data=True,
+    # package_data= {
+    #    'ASREpy': ['ASREpy\\ASREcpp\\bin\\win32\\ASRElib.dll',
+    #               'ASREpy\\ASREcpp\\bin\\macOS\\libASRElib.dylib']
+    # },
     package_data= {
-       'ASREpy': ['ASREpy\\ASREcpp\\bin\\win32\\ASRElib.dll']
+       'ASREpy': [ASREwinlib,
+                  ASREmacOSlib]
     },
+    
 )
