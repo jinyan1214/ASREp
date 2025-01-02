@@ -80,20 +80,42 @@ class ASRE_Timoshenko_model:
             The CDLL.
         """
         if pltm == "linux" or pltm == "linux2":
-            c_lib = CDLL(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                    "lib/linux/ASRElib.so"))
+            lib_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    "ASREcpp", "bin", "macOS_arm", "libASRElibTimoBeam.so")
+            if os.path.exists(lib_path):
+                c_lib = CDLL(lib_path)
+            else:
+                c_lib = None
+                message = f'ASRE is not precompiled for {pltm}, please compile the ASRE cpp library'
         elif pltm == "darwin":
             if platform.processor() == 'arm':
-                c_lib = CDLL(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                        "lib/macOS_m1/ASRElib.so"))
+                lib_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                        "ASREcpp", "bin", "macOS_arm", "libASRElibTimoBeam.dylib")
+                if os.path.exists(lib_path):
+                    c_lib = CDLL(lib_path)
+                else:
+                    c_lib = None
+                    message = f'ASRE is not precompiled for {pltm} {platform.processor()}, please compile the ASRE cpp library'
             else:
-                c_lib = CDLL(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                        "ASREcpp", "bin", "macOS", "libASRElib.dylib"))
+                lib_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                        "ASREcpp", "bin", "macOS", "libASRElibTimoBeam.dylib")
+                if os.path.exists(lib_path):
+                    c_lib = CDLL(lib_path)
+                else:
+                    c_lib = None
+                    message = f'ASRE is not precompiled for {pltm} {platform.processor()}, please compile the ASRE cpp library'
         elif pltm == "win32":
-            c_lib = CDLL(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                    "ASREcpp", "bin", "win32", "ASRElib.dll"))
+            lib_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    "ASREcpp", "bin", "win32", "libASRElibTimoBeam.dll")
+            if os.path.exists(lib_path):
+                c_lib = CDLL(lib_path)
+            else:
+                c_lib = None
+                message = f'ASRE is not precompiled for {pltm}, please compile the ASRE cpp library'
             # c_lib = CDLL(pkg_resources.resource_filename('ASREpy', 'ASREcpp//bin//win32//ASRElib.dll'))
             # c_lib.printName()
+        if c_lib is None:
+            raise ImportError(message)
         c_lib.run.argtypes = [c_int, #nnode 
                               np.ctypeslib.ndpointer(dtype=np.float64), #meshX
                               np.ctypeslib.ndpointer(dtype=np.float64), #meshY
@@ -261,8 +283,12 @@ class ASRE_Timoshenko_model:
             pass
         else:
             lib_handle = self.asre_dll._handle
-            del self.asre_dll
-            _ctypes.FreeLibrary(lib_handle)
-            self.asre_dll = None
+            if pltm == "win32": 
+                del self.asre_dll
+                _ctypes.FreeLibrary(lib_handle)
+                self.asre_dll = None
+            elif pltm == "darwin":
+                dl = CDLL('libdl.dylib')
+                dl.dlclose(lib_handle)
 
  
