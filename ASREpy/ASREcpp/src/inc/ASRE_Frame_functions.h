@@ -1,6 +1,6 @@
 #pragma once
-#ifndef ASRE_Timo_functions
-#define ASRE_Timo_functions
+#ifndef ASRE_Frame_functions
+#define ASRE_Frame_functions
 #define _USE_MATH_DEFINES
 
 #include "Eigen/Dense"
