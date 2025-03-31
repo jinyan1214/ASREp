@@ -39,7 +39,7 @@ class ASRE_Timoshenko_model:
         The friction coefficient between soil and beam. Unit: unitless
     """
 
-    def __init__(self, nnode, meshX, meshY, meshZ, dfoot, bfoot, solver = 'elasto-plastic'):
+    def __init__(self, nnode, meshX, meshY, meshZ, dfoot, bfoot, d_NA = 0, solver = 'elasto-plastic'):
         """
         Constructs the beam with dimension properties.
 
@@ -57,6 +57,8 @@ class ASRE_Timoshenko_model:
             The depth of the beam. Unit: m
         bfoot : float
             The width of the beam. Unit: m
+        d_NA : float
+            The distance from beam neutural axis to ground. Unit: m
         solver : str
             The solver used in the model. Default is 'elasto-plastic'.
             Another option is 'elastic'.
@@ -68,6 +70,7 @@ class ASRE_Timoshenko_model:
         self.dfoot = dfoot
         self.bfoot = bfoot
         self.asre_dll = self._import_dll()
+        self.d_NA = d_NA
         self.solver = solver
 
     def _import_dll(self):
@@ -132,6 +135,7 @@ class ASRE_Timoshenko_model:
                               c_double, #ni_foot
                               c_double, #mu_int
                               c_double, #qz_foot
+                              c_double, #d_NA
                               c_char_p, #solver
                               c_char_p, #output
                                   POINTER(c_double), # result
@@ -140,7 +144,7 @@ class ASRE_Timoshenko_model:
         c_lib.run.restype = c_int
         return c_lib
 
-    def set_beam_properties(self, Eb, EoverG, q_foot):
+    def set_beam_properties(self, Eb, EoverG, q_foot, d_NA = 0):
         """
         Set the beam material properties.
 
@@ -158,6 +162,7 @@ class ASRE_Timoshenko_model:
         self.EoverG = EoverG
         self.q_foot = q_foot
         self.ni_foot = self.EoverG/2 - 1 #The Poisson's ratio of beam. Unit: unitless
+        self.d_NA = d_NA
 
     def set_soil_properties(self, EsNominal, nis, mu_int):
         """
@@ -222,7 +227,7 @@ class ASRE_Timoshenko_model:
                                        dispV, dispL, dispT, self.Eb, self.EoverG,
                                        self.EsNominal, self.nis, self.dfoot,
                                        self.bfoot, self.ni_foot, self.mu_int,
-                                       self.q_foot, self.solver, self.ouput,
+                                       self.q_foot, self.d_NA, self.solver, self.ouput,
                                        self.result_array_ptr, result_size)
             self.result = result
             self.result_array_ptr = np.array(list(self.result_array_ptr))
@@ -269,6 +274,7 @@ class ASRE_Timoshenko_model:
             'dfoot': self.dfoot,
             'bfoot': self.bfoot,
             'ni_foot': self.ni_foot,
+            'd_NA': self.d_NA,
             'mu_int': self.mu_int,
             'q_foot': self.q_foot,
             'solver': self.solver,

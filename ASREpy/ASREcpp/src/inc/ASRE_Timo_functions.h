@@ -217,6 +217,97 @@ MatrixXd KBern3D_foot_TIM(double E, double d_foot, double b_foot, double dx, dou
         return Kelem;
     }
 
+    MatrixXd KBern3D_foot_TIM_dNA(double E, double d_foot, double b_foot, double dx, double EGratio,
+        double ni_str, double d_NA) {
+        
+        // std::cout << "d_NA: " << d_NA << std::endl;
+        double A = b_foot * d_foot;
+        double a = std::max(b_foot, d_foot) / 2;
+        double b = std::min(b_foot, d_foot) / 2;
+        // double I11 = a * (b * b * b) * ((double)16 / 3 - 3.36 * b / a * (1 - (b * b * b * b) / 12 / (a * a * a * a)));
+        double I22 = b_foot * pow(d_foot, 3) / 12;
+        double I33 = d_foot * pow(b_foot, 3) / 12; 
+        double I11 = I22 + I33;
+        Vector3d Xi(0, 0, 0);
+        Vector3d Xf(dx, 0, 0);
+        double L = (Xi - Xf).norm();
+        double k = 10 * (1 + ni_str) / (12 + 11 * ni_str);
+        double G = E / EGratio;
+        double phi2 = 12 * E * I22 / k / G / A / (L * L);
+        double phi3 = 12 * E * I33 / k / G / A / (L * L);
+        double phi2Bar = 1/(1+phi2);
+        double phi3Bar = 1/(1+phi3);
+        Vector3d Z(0, 0, 1);
+        Vector3d x1 = (Xf - Xi) / L;
+        Vector3d x2 = Z.cross(x1) / (Z.cross(x1).norm());
+        Vector3d x3 = x1.cross(x2) / (x1.cross(x2).norm());
+        MatrixXd Rot(3, 3);
+        Rot << x1(0), x1(1), x1(2),
+            x2(0), x2(1), x2(2),
+            x3(0), x3(1), x3(2);
+        MatrixXd MatRot = MatrixXd::Zero(12, 12);
+        MatRot.block(0, 0, 3, 3) = Rot;
+        MatRot.block(3, 3, 3, 3) = Rot;
+        MatRot.block(6, 6, 3, 3) = Rot;
+        MatRot.block(9, 9, 3, 3) = Rot;
+
+        MatrixXd K = MatrixXd::Zero(12, 12);
+        K(0, 0) = E * A / L;
+        K(0, 4) = -1 * E * A / L * d_NA;
+        K(0, 6) = (-1) * E * A / L;
+        K(0, 10) = E * A / L * d_NA;
+        K(1, 1) = 12 * E * I33 * phi3Bar/ pow(L, 3);
+        K(1, 5) = 6 * E * I33 *phi3Bar/ pow(L, 2);
+        K(1, 7) = -12 * E * I33 *phi3Bar/ pow(L, 3);
+        K(1, 11) = 6 * E * I33 *phi3Bar/ pow(L, 2);
+        K(2, 2) = 12 * E * I22 / pow(L, 3) * phi2Bar;
+        K(2, 4) = -6 * E * I22 / pow(L, 2) * phi2Bar;
+        K(2, 8) = -12 * E * I22 / pow(L, 3) * phi2Bar;
+        K(2, 10) = -6 * E * I22 / pow(L, 2) * phi2Bar;
+        K(3, 3) = G * I11 / L;
+        K(3, 9) = (-1) * G * I11 / L;
+        K(4, 0) = -1 * E * A / L * d_NA;
+        K(4, 2) = -6 * E * I22 / pow(L, 2) * phi2Bar;
+        K(4, 4) = (4 + phi2) * E * I22 / L * phi2Bar + E * A / L * pow(d_NA, 2);
+        K(4, 6) = E * A / L * d_NA;
+        K(4, 8) = 6 * E * I22 / pow(L, 2) * phi2Bar;
+        K(4, 10) = (2 - phi2) * E * I22 / L * phi2Bar - E * A / L * pow(d_NA, 2);
+        K(5, 1) = 6 * E * I33 *phi3Bar/ pow(L, 2);
+        K(5, 5) = (4 + phi3) * phi3Bar * E * I33 / L;
+        K(5, 7) = -6 * phi3Bar *E * I33 / pow(L, 2);
+        K(5, 11) = (2 - phi3) * phi3Bar * E * I33 / L;
+        K(6, 0) = -1 * E * A / L;
+        K(6, 4) = E * A / L * d_NA;
+        K(6, 6) = E * A / L;
+        K(6, 10) = -1 * E * A / L * d_NA;
+        K(7, 1) = -12 * E * I33 * phi3Bar/ pow(L, 3);
+        K(7, 5) = -6 * E * I33 * phi3Bar/ pow(L, 2);
+        K(7, 7) = 12 * E * I33 * phi3Bar/ pow(L, 3);
+        K(7, 11) = -6 * E * I33 *phi3Bar/ pow(L, 2);
+        K(8, 2) = -12 * E * I22 * phi2Bar/ pow(L, 3);
+        K(8, 4) = 6 * E * I22 / pow(L, 2) *phi2Bar;
+        K(8, 8) = 12 * E * I22 / pow(L, 3) *phi2Bar;
+        K(8, 10) = 6 * E * I22 / pow(L, 2) * phi2Bar;
+
+        K(9, 3) = -1 * G * I11 / L;
+        K(9, 9) = G * I11 / L;
+
+        K(10, 0) = E * A / L * d_NA;
+        K(10, 2) = -6 * E * I22 / pow(L, 2) * phi2Bar;
+        K(10, 4) = (2 - phi2) * E * I22 / L * phi2Bar - E * A / L * pow(d_NA, 2);
+        K(10, 6) = -1 * E * A / L * d_NA;
+        K(10, 8) = 6 * E * I22 / pow(L, 2) * phi2Bar;
+        K(10, 10) = (4 + phi2) * E * I22 / L * phi2Bar + E * A / L * pow(d_NA, 2);
+
+        K(11, 1) = 6 * E *phi3Bar * I33 / pow(L, 2);
+        K(11, 5) = (2 - phi3) * phi3Bar * E * I33 / L;
+        K(11, 7) = -6 * phi3Bar * E * I33 / pow(L, 2);
+        K(11, 11) = (4 + phi3) * E * phi3Bar * I33 / L;
+
+        MatrixXd Kelem = MatRot.transpose() * K * MatRot;
+        return Kelem;
+    }
+
 void f_int_mind_dz_p(const VectorXd& u, VectorXd v, VectorXd w, VectorXd x, VectorXd y,
     const VectorXd& z, VectorXd* fdz, VectorXd* fdx, int nnodes_foot, double nis) {
     VectorXd X = x - u;
@@ -1112,11 +1203,11 @@ void calInternalForces(VectorXd* F_M_deltaT_el_M_ptr, VectorXd* F_N_deltaT_el_M_
 
 VectorXd calculateStrain(VectorXd* F_S_deltaT_el_ptr, VectorXd* F_M_deltaT_el_ptr,
     VectorXd* F_N_deltaT_el_ptr, double Efoot, double EGratio, double bfoot, double dfoot,
-    double ni_foot) {
+    double ni_foot, double d_na) {
     double I_fot = bfoot * pow(dfoot, 3) / 12.0;
     double c_shear = 1.5;
     double s_shear = 0;
-    double d_na = dfoot / 2.0;
+    // double d_na = dfoot / 2.0;
     VectorXd epsilon_dmax = c_shear * (*F_S_deltaT_el_ptr).cwiseAbs() /
         ((10 + ni_foot * 10) / (12 + 11 * ni_foot) * bfoot * dfoot) / (2 * Efoot / EGratio);
     VectorXd epsilon_bmax_top = (*F_M_deltaT_el_ptr) * (-1 * (dfoot - d_na)) / (Efoot * I_fot);

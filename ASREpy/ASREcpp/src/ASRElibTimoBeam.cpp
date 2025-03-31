@@ -32,6 +32,7 @@ extern "C" {
     //__declspec(dllexport) int run() {
     DLLEXPORT int run(int nnode, double* meshX, double* meshY, double* meshZ, double* dispV, double* dispL, double* dispT,
         double Eb, double EoverG, double EsNominal, double nis, double dfoot, double bfoot, double ni_foot, double mu_int, double qz_foot,
+        double d_NA,
         const char* solver,
         const char* output,
         double* result_array,
@@ -75,7 +76,7 @@ extern "C" {
         MatrixXd KKfoot = MatrixXd::Zero(dimK, dimK);
         for (int i = 0; i < nelement; i++) {
             double dx = std::sqrt((meshX[i] - meshX[i + 1]) * (meshX[i] - meshX[i + 1]) + (meshY[i] - meshY[i + 1]) * (meshY[i] - meshY[i + 1]));
-            MatrixXd KBern3Delt = KBern3D_foot_TIM(Eb, dfoot, bfoot, dx, EoverG, ni_foot);
+            MatrixXd KBern3Delt = KBern3D_foot_TIM_dNA(Eb, dfoot, bfoot, dx, EoverG, ni_foot, d_NA);
             KKfoot(seq((i) * 6, (i) * 6 + 11, 1),
                 seq((i) * 6, (i) * 6 + 11, 1)) =
                 KKfoot(seq((i) * 6, (i) * 6 + 11, 1),
@@ -223,7 +224,7 @@ extern "C" {
             calInternalForces(&F_M_deltaT_el_M, &F_N_deltaT_el_M, &F_S_deltaT_el_M,
                     u_P_el, uinc, Eb, EoverG, h_el_foot, dfoot, bfoot, ni_foot, nnode);
             VectorXd epsilon_vector = calculateStrain(&F_S_deltaT_el_M, &F_M_deltaT_el_M,
-                    &F_N_deltaT_el_M, Eb, EoverG, bfoot, dfoot, ni_foot);
+                    &F_N_deltaT_el_M, Eb, EoverG, bfoot, dfoot, ni_foot, d_NA);
             VectorXd result = epsilon_vector;
             std::copy(result.data(), result.data() + result.size(), result_array);
             return 0;
@@ -232,7 +233,7 @@ extern "C" {
             calInternalForces(&F_M_deltaT_el_M, &F_N_deltaT_el_M, &F_S_deltaT_el_M,
                     u_P_el, uinc, Eb, EoverG, h_el_foot, dfoot, bfoot, ni_foot, nnode);
             VectorXd epsilon_vector = calculateStrain(&F_S_deltaT_el_M, &F_M_deltaT_el_M,
-                    &F_N_deltaT_el_M, Eb, EoverG, bfoot, dfoot, ni_foot);
+                    &F_N_deltaT_el_M, Eb, EoverG, bfoot, dfoot, ni_foot, d_NA);
             VectorXd strain = epsilon_vector;
             VectorXd disp = uinc - u_P_el;
             VectorXd result(strain.size() + disp.size());
