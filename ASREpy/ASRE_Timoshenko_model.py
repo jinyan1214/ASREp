@@ -212,10 +212,13 @@ class ASRE_Timoshenko_model:
             result_size = self.nnode * 6
             self.result_array_ptr = (c_double * result_size)(*([0]*result_size))
         elif self.ouput == 'strain':
-            result_size = 3
+            result_size = 3 * (self.nnode-1) * 2
             self.result_array_ptr = (c_double * result_size)(*([0]*result_size))
         elif self.ouput == 'strain+disp':
-            result_size = 3 + self.nnode * 6
+            result_size = 3 * (self.nnode-1) * 2 + self.nnode * 6
+            self.result_array_ptr = (c_double * result_size)(*([0]*result_size))
+        elif self.ouput == 'strain+disp+force':
+            result_size = 3 * (self.nnode-1) * 2 + self.nnode * 6 + 3 * (self.nnode-1) * 2
             self.result_array_ptr = (c_double * result_size)(*([0]*result_size))
         else:
             raise ValueError(f'output value {output} is not permitted in ASRE_Timoshenko_model')
@@ -239,16 +242,35 @@ class ASRE_Timoshenko_model:
                 self.beam_RotaT = self.result_array_ptr[4::6]
                 self.beam_RotaV = self.result_array_ptr[5::6]
             elif self.ouput.decode('utf-8') == 'strain':
-                self.beam_p_strains = self.result_array_ptr
+                self.beam_strain_top = self.result_array_ptr[0:(self.nnode-1)*2]
+                self.beam_strain_bottom = self.result_array_ptr[(self.nnode-1)*2:(self.nnode-1)*4]
+                self.beam_strain_diagonal = self.result_array_ptr[(self.nnode-1)*4:(self.nnode-1)*6]
             elif self.ouput.decode('utf-8') == 'strain+disp':
-                self.beam_p_strains = self.result_array_ptr[0:3]
-                result_array = self.result_array_ptr[3:]
+                self.beam_strain_top = self.result_array_ptr[0:(self.nnode-1)*2]
+                self.beam_strain_bottom = self.result_array_ptr[(self.nnode-1)*2:(self.nnode-1)*4]
+                self.beam_strain_diagonal = self.result_array_ptr[(self.nnode-1)*4:(self.nnode-1)*6]
+                result_array = self.result_array_ptr[(self.nnode-1)*6:]
                 self.beam_DispL = result_array[0::6]
                 self.beam_DispT = result_array[1::6]
                 self.beam_DispV = result_array[2::6]
                 self.beam_RotaL = result_array[3::6]
                 self.beam_RotaT = result_array[4::6]
                 self.beam_RotaV = result_array[5::6]
+            elif self.ouput.decode('utf-8') == 'strain+disp+force':
+                self.beam_strain_top = self.result_array_ptr[0:(self.nnode-1)*2]
+                self.beam_strain_bottom = self.result_array_ptr[(self.nnode-1)*2:(self.nnode-1)*4]
+                self.beam_strain_diagonal = self.result_array_ptr[(self.nnode-1)*4:(self.nnode-1)*6]
+                result_array = self.result_array_ptr[(self.nnode-1)*6:(self.nnode-1)*6+self.nnode*6]
+                self.beam_DispL = result_array[0::6]
+                self.beam_DispT = result_array[1::6]
+                self.beam_DispV = result_array[2::6]
+                self.beam_RotaL = result_array[3::6]
+                self.beam_RotaT = result_array[4::6]
+                self.beam_RotaV = result_array[5::6]
+                result_array = self.result_array_ptr[(self.nnode-1)*6+self.nnode*6:]
+                self.moment = result_array[0:(self.nnode-1)*2]
+                self.axialForce = result_array[(self.nnode-1)*2:(self.nnode-1)*4]
+                self.shearForce = result_array[(self.nnode-1)*4:(self.nnode-1)*6]
             return True
         except:
             self.release_cdll_handle()

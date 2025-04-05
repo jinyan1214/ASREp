@@ -239,6 +239,19 @@ extern "C" {
             VectorXd result(strain.size() + disp.size());
             result << strain, disp;
             std::copy(result.data(), result.data() + result.size(), result_array);
+            return 0;    
+        } else if (strcmp(output, "strain+disp+force") == 0) {
+            VectorXd F_M_deltaT_el_M, F_N_deltaT_el_M, F_S_deltaT_el_M;
+            calInternalForces(&F_M_deltaT_el_M, &F_N_deltaT_el_M, &F_S_deltaT_el_M,
+                    u_P_el, uinc, Eb, EoverG, h_el_foot, dfoot, bfoot, ni_foot, nnode);
+            VectorXd epsilon_vector = calculateStrain(&F_S_deltaT_el_M, &F_M_deltaT_el_M,
+                    &F_N_deltaT_el_M, Eb, EoverG, bfoot, dfoot, ni_foot, d_NA);
+            VectorXd strain = epsilon_vector;
+            VectorXd disp = uinc - u_P_el;
+            VectorXd result(F_M_deltaT_el_M.size() + F_N_deltaT_el_M.size() + F_S_deltaT_el_M.size()+
+                    strain.size() + disp.size());
+            result << strain, disp, F_M_deltaT_el_M, F_N_deltaT_el_M, F_S_deltaT_el_M;
+            std::copy(result.data(), result.data() + result.size(), result_array);
             return 0;
         } else {
             return -1;

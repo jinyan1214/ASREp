@@ -1221,10 +1221,12 @@ VectorXd calculateStrain(VectorXd* F_S_deltaT_el_ptr, VectorXd* F_M_deltaT_el_pt
         (pri_plus_h.cwiseProduct(pri_plus_h) * (1 + ni_foot) / 2.0 * (1 + ni_foot) / 2.0 +
             epsilon_dmax.cwiseProduct(epsilon_dmax)).cwiseSqrt();
 
-    VectorXd result(3);
-    result(0) = epsilon_br_top.maxCoeff();
-    result(1) = epsilon_br_bot.maxCoeff();
-    result(2) = epsilon_dr.maxCoeff();
+    VectorXd result(epsilon_br_top.size() + epsilon_br_bot.size() + epsilon_dr.size());
+    // result(0) = epsilon_br_top.maxCoeff();
+    // result(1) = epsilon_br_bot.maxCoeff();
+    // result(2) = epsilon_dr.maxCoeff();
+    result << epsilon_br_top, epsilon_br_bot, epsilon_dr;
+    // std::cout << result.size() << std::endl;
     return result;
 }
 #endif
