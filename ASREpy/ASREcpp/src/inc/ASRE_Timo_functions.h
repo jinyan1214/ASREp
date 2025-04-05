@@ -253,9 +253,9 @@ MatrixXd KBern3D_foot_TIM(double E, double d_foot, double b_foot, double dx, dou
 
         MatrixXd K = MatrixXd::Zero(12, 12);
         K(0, 0) = E * A / L;
-        K(0, 4) = -1 * E * A / L * d_NA;
+        K(0, 4) = 1 * E * A / L * d_NA;
         K(0, 6) = (-1) * E * A / L;
-        K(0, 10) = E * A / L * d_NA;
+        K(0, 10) = -1 * E * A / L * d_NA;
         K(1, 1) = 12 * E * I33 * phi3Bar/ pow(L, 3);
         K(1, 5) = 6 * E * I33 *phi3Bar/ pow(L, 2);
         K(1, 7) = -12 * E * I33 *phi3Bar/ pow(L, 3);
@@ -266,10 +266,10 @@ MatrixXd KBern3D_foot_TIM(double E, double d_foot, double b_foot, double dx, dou
         K(2, 10) = -6 * E * I22 / pow(L, 2) * phi2Bar;
         K(3, 3) = G * I11 / L;
         K(3, 9) = (-1) * G * I11 / L;
-        K(4, 0) = -1 * E * A / L * d_NA;
+        K(4, 0) =  E * A / L * d_NA;
         K(4, 2) = -6 * E * I22 / pow(L, 2) * phi2Bar;
         K(4, 4) = (4 + phi2) * E * I22 / L * phi2Bar + E * A / L * pow(d_NA, 2);
-        K(4, 6) = E * A / L * d_NA;
+        K(4, 6) = - E * A / L * d_NA;
         K(4, 8) = 6 * E * I22 / pow(L, 2) * phi2Bar;
         K(4, 10) = (2 - phi2) * E * I22 / L * phi2Bar - E * A / L * pow(d_NA, 2);
         K(5, 1) = 6 * E * I33 *phi3Bar/ pow(L, 2);
@@ -277,9 +277,9 @@ MatrixXd KBern3D_foot_TIM(double E, double d_foot, double b_foot, double dx, dou
         K(5, 7) = -6 * phi3Bar *E * I33 / pow(L, 2);
         K(5, 11) = (2 - phi3) * phi3Bar * E * I33 / L;
         K(6, 0) = -1 * E * A / L;
-        K(6, 4) = E * A / L * d_NA;
+        K(6, 4) = - E * A / L * d_NA;
         K(6, 6) = E * A / L;
-        K(6, 10) = -1 * E * A / L * d_NA;
+        K(6, 10) = E * A / L * d_NA;
         K(7, 1) = -12 * E * I33 * phi3Bar/ pow(L, 3);
         K(7, 5) = -6 * E * I33 * phi3Bar/ pow(L, 2);
         K(7, 7) = 12 * E * I33 * phi3Bar/ pow(L, 3);
@@ -292,10 +292,10 @@ MatrixXd KBern3D_foot_TIM(double E, double d_foot, double b_foot, double dx, dou
         K(9, 3) = -1 * G * I11 / L;
         K(9, 9) = G * I11 / L;
 
-        K(10, 0) = E * A / L * d_NA;
+        K(10, 0) = - E * A / L * d_NA;
         K(10, 2) = -6 * E * I22 / pow(L, 2) * phi2Bar;
         K(10, 4) = (2 - phi2) * E * I22 / L * phi2Bar - E * A / L * pow(d_NA, 2);
-        K(10, 6) = -1 * E * A / L * d_NA;
+        K(10, 6) =  E * A / L * d_NA;
         K(10, 8) = 6 * E * I22 / pow(L, 2) * phi2Bar;
         K(10, 10) = (4 + phi2) * E * I22 / L * phi2Bar + E * A / L * pow(d_NA, 2);
 
