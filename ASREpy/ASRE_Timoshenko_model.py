@@ -142,7 +142,53 @@ class ASRE_Timoshenko_model:
                                   c_int # result_size
                             ]
         c_lib.run.restype = c_int
+
+        c_lib.KBern3D_foot_TIM_dNA_interface.argtypes = [c_double, # E
+                                               c_double, # d_foot
+                                               c_double, # b_foot
+                                               c_double, # dx
+                                               c_double, # EGratio
+                                               c_double, # ni_str
+                                               c_double, # d_NA
+                                               POINTER(c_double) # result_array
+                                               ]
+        c_lib.KBern3D_foot_TIM_dNA_interface.restype = c_int
         return c_lib
+
+    def KBern3D_foot_TIM_dNA(self, elem_i = 0, d_NA = None):
+        """
+        Call the C++ function KBern3D_foot_TIM_dNA_interface.
+
+        Parameters
+        ----------
+        elem_i : int, optional, the index of the element to compute the stiffness matrix for.
+            If None, compute the stiffness matrix for the first element.
+
+        Returns
+        -------
+        np.array(dtype=float)
+            The element stiffness matrix.
+        """
+        E = self.Eb
+        d_foot = self.dfoot
+        b_foot = self.bfoot
+        if elem_i >= self.nnode - 1:
+            raise IndexError(f'elem_i {elem_i} is out of range for nnode {self.nnode}')
+        dx = self.meshX[elem_i+1] - self.meshX[elem_i]
+        EGratio = self.EoverG
+        ni_str = self.ni_foot
+        if d_NA is None:
+            d_NA = self.d_NA
+
+        result_array = (c_double * 144)(*([0]*144))
+        result = self.asre_dll.KBern3D_foot_TIM_dNA_interface(E, d_foot, b_foot, 
+                                                              dx, EGratio, ni_str, 
+                                                              d_NA, result_array)
+        if result == 0:
+            element_stiffness = np.array(list(result_array)).copy()
+        else:
+            raise RuntimeError(f'KBern3D_foot_TIM_dNA_interface failed with error code {result}')
+        return element_stiffness
 
     def set_beam_properties(self, Eb, EoverG, q_foot, d_NA = 0):
         """
@@ -235,6 +281,7 @@ class ASRE_Timoshenko_model:
             self.result = result
             self.result_array_ptr = np.array(list(self.result_array_ptr))
             if self.ouput.decode('utf-8') == 'disp':
+                # The cpp lib returns the disp at the soil-beam interface (ground level)
                 self.beam_DispL = self.result_array_ptr[0::6]
                 self.beam_DispT = self.result_array_ptr[1::6]
                 self.beam_DispV = self.result_array_ptr[2::6]
@@ -271,10 +318,134 @@ class ASRE_Timoshenko_model:
                 self.moment = result_array[0:(self.nnode-1)*2]
                 self.axialForce = result_array[(self.nnode-1)*2:(self.nnode-1)*4]
                 self.shearForce = result_array[(self.nnode-1)*4:(self.nnode-1)*6]
+            # Get the disp at the beam-axis
+            _ = self.get_beam_axis_disp()
+            self.compute_internal_forces()
+            self.compute_tensile_strain()
+            
             return True
         except:
             self.release_cdll_handle()
             raise RuntimeError(f'ASRE_Timoshenko_model failed to run the ASRE cpp library')
+    
+    def compute_internal_forces(self):
+
+        # Number of elements
+        num_elements = self.nnode - 1
+
+        # Initialize the internal forces vectors
+        F_M_deltaT_el = np.zeros(2 * num_elements)
+        F_N_deltaT_el = np.zeros(2 * num_elements)
+        F_S_deltaT_el = np.zeros(2 * num_elements)
+
+        # Compute the internal forces for each element
+        for j in range(num_elements):
+            # use the stiffness and disp at element axis
+            K_local = self.KBern3D_foot_TIM_dNA(elem_i=j, d_NA=0).reshape((12, 12))  # Get the local stiffness matrix for the current element
+            # Extract the nodal displacements for the current element
+            element_disp = np.zeros((12, 1))
+            element_disp[0:6] = self.axis_disp[j * 6:(j + 1) * 6]
+            if (j + 1) * 6 < len(self.axis_disp):
+                element_disp[6:12] = self.axis_disp[(j + 1) * 6:(j + 2) * 6]
+
+            # Compute the internal forces for the current element
+            Fin_P = np.dot(K_local, element_disp)
+
+            # Store the internal forces in the vectors
+            F_M_deltaT_el[2 * j] = -Fin_P[4, 0]
+            F_M_deltaT_el[2 * j + 1] = Fin_P[10, 0]
+            F_N_deltaT_el[2 * j] = -Fin_P[0, 0]
+            F_N_deltaT_el[2 * j + 1] = Fin_P[6, 0]
+            F_S_deltaT_el[2 * j] = -Fin_P[2, 0]
+            F_S_deltaT_el[2 * j + 1] = Fin_P[8, 0]
+
+        self.moment = F_M_deltaT_el
+        self.axialForce = F_N_deltaT_el
+        self.shearForce = F_S_deltaT_el
+        return
+    
+    def compute_tensile_strain(self):
+        Ab = self.bfoot * self.dfoot  # Cross-sectional area of the beam
+        poissons_ratio = self.ni_foot  # Poisson's ratio of the beam
+        Gb = self.Eb / (2 * (1 + poissons_ratio))  # Shear modulus of the beam
+        As = Ab * (10 + (poissons_ratio * 10)) / (12 + (11 * poissons_ratio))  # According to Wikipedia
+        GAs = Gb * As
+        shear_factor_midpoint = 1.5 # for Timoshenko beam theory, shear factor 
+        EA = self.Eb * Ab  # Axial stiffness of the beam
+        EI = self.Eb * (self.bfoot * self.dfoot**3) / 12  # Bending stiffness of the beam
+        # N / EA
+        strain_axial_normal = self.axialForce / EA
+        # ( M / EI ) * d
+        strain_axial_bending_top = -(self.moment / EI) * (self.dfoot - self.d_NA)  # Compressive strains in the top
+        strain_axial_bending_bottom = (self.moment / EI) * self.d_NA
+
+        # Navier's formula
+        tensile_strain_top = strain_axial_normal + strain_axial_bending_top
+        tensile_strain_bottom = strain_axial_normal + strain_axial_bending_bottom
+
+        true_shear_strain = (self.shearForce * shear_factor_midpoint / GAs) / 2
+
+        # Bending's contribution e_xx * (1 - v) / 2
+        strain_exx_contribution = ((strain_axial_normal * (1 - poissons_ratio)) / 2)
+        # Formula 7 from slides
+        tensile_strain_midpoint = strain_exx_contribution + np.sqrt(
+            (((strain_axial_normal * (1 + poissons_ratio)) / 2) ** 2)
+            + (true_shear_strain ** 2))
+
+        eps_t = np.zeros_like(tensile_strain_midpoint)  # Create return vector
+        for i in range(len(tensile_strain_midpoint.flatten())):
+            eps_t[i] = max(tensile_strain_midpoint[i], tensile_strain_top[i], tensile_strain_bottom[i])
+        self.eps_t = eps_t
+        return
+
+    def get_beam_axis_disp(self):
+        """
+        Get the beam axis displacement.
+
+        Returns
+        -------
+        np.array(dtype=float)
+            The beam axis displacement in the unit of m.
+        """
+        if hasattr(self, 'beam_DispL'):
+            axis_DispL = self.beam_DispL + self.beam_RotaT * self.d_NA
+            numNodes = self.nnode
+            total_disp = np.zeros([numNodes * 6, 1])
+            total_disp[0::6] = axis_DispL.reshape(-1, 1)  # [m] Longitudinal / axial (x)
+            total_disp[1::6] = self.beam_DispT.reshape(-1, 1)  # [m] Transversal (y)
+            total_disp[2::6] = self.beam_DispV.reshape(-1, 1)  # [m] Vertical (z)
+            total_disp[3::6] = self.beam_RotaL.reshape(-1, 1)  # [rad] Horizontal rotations
+            total_disp[4::6] = self.beam_RotaT.reshape(-1, 1)  # [rad] Transversal rotations
+            total_disp[5::6] = self.beam_RotaV.reshape(-1, 1)  # [ras] Vertical rotations
+            self.axis_disp = total_disp
+            return axis_DispL
+        else:
+            raise AttributeError('The beam axis displacement is not computed yet. Please run the model first.')
+
+    def categorize_damage(self):
+        """
+        Categorize the damage based on the computed tensile strain.
+
+        Returns:
+        damage_category : str - The damage category based on the tensile strain based
+        on Boscardin and Cording, 1989
+        """
+
+        tensile_strain = self.eps_t.max() * 100  # Convert to percent
+        # print("Maximum tensile strain is %", tensile_strain)
+        if tensile_strain < 0.05:
+            return 0, tensile_strain
+        elif tensile_strain < 0.075:
+            return 1, tensile_strain
+        elif tensile_strain < 0.15:
+            return 2, tensile_strain
+        elif tensile_strain < 0.3:
+            return 3, tensile_strain
+        elif tensile_strain < 0.6:
+            return 4, tensile_strain
+        else:
+            return 5, tensile_strain
+    
     def _write_input_file(self,  dispL, dispT, dispV, output = 'disp',
                           folder=None, filename=None):
         if filename is None:

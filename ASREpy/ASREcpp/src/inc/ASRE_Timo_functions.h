@@ -139,12 +139,30 @@ using namespace std::chrono;
 MatrixXd KBern3D_foot_TIM(double E, double d_foot, double b_foot, double dx, double EGratio,
         double ni_str) {
         double A = b_foot * d_foot;
-        double a = std::max(b_foot, d_foot) / 2;
-        double b = std::min(b_foot, d_foot) / 2;
+
+        VectorXd l_over_s = VectorXd::Zero(9);
+        l_over_s << 1, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 10.0, 100.0;
+        VectorXd beta_list = VectorXd::Zero(9);
+        beta_list << 0.141, 0.169, 0.229, 0.249, 0.263, 0.281, 0.291, 0.312, 0.333;
+        double long_side = std::max(b_foot, d_foot);
+        double short_side = std::min(b_foot, d_foot);
+        double l_over_s_ratio = long_side / short_side;
+        double beta = 0.333; // Default value if no match is found
+        for (int i = 0; i < l_over_s.size(); i++) {
+            if (l_over_s_ratio < l_over_s(i)) {
+                double beta_low = beta_list(i-1);
+                double beta_high = beta_list(i);
+                beta = beta_low + (beta_high - beta_low) * (l_over_s_ratio - l_over_s(i-1)) / (l_over_s(i) - l_over_s(i-1));
+                break;
+            }
+        }
+
         // double I11 = a * (b * b * b) * ((double)16 / 3 - 3.36 * b / a * (1 - (b * b * b * b) / 12 / (a * a * a * a)));
         double I22 = b_foot * pow(d_foot, 3) / 12;
         double I33 = d_foot * pow(b_foot, 3) / 12; 
-        double I11 = I22 + I33;
+        // double I11 = I22 + I33;
+        double I11 = beta * long_side * pow(short_side, 3);
+
         Vector3d Xi(0, 0, 0);
         Vector3d Xf(dx, 0, 0);
         double L = (Xi - Xf).norm();
@@ -222,12 +240,28 @@ MatrixXd KBern3D_foot_TIM(double E, double d_foot, double b_foot, double dx, dou
         
         // std::cout << "d_NA: " << d_NA << std::endl;
         double A = b_foot * d_foot;
-        double a = std::max(b_foot, d_foot) / 2;
-        double b = std::min(b_foot, d_foot) / 2;
+
+        VectorXd l_over_s = VectorXd::Zero(9);
+        l_over_s << 1, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 10.0, 100.0;
+        VectorXd beta_list = VectorXd::Zero(9);
+        beta_list << 0.141, 0.169, 0.229, 0.249, 0.263, 0.281, 0.291, 0.312, 0.333;
+        double long_side = std::max(b_foot, d_foot);
+        double short_side = std::min(b_foot, d_foot);
+        double l_over_s_ratio = long_side / short_side;
+        double beta = 0.333; // Default value if no match is found
+        for (int i = 0; i < l_over_s.size(); i++) {
+            if (l_over_s_ratio < l_over_s(i)) {
+                double beta_low = beta_list(i-1);
+                double beta_high = beta_list(i);
+                beta = beta_low + (beta_high - beta_low) * (l_over_s_ratio - l_over_s(i-1)) / (l_over_s(i) - l_over_s(i-1));
+                break;
+            }
+        }
         // double I11 = a * (b * b * b) * ((double)16 / 3 - 3.36 * b / a * (1 - (b * b * b * b) / 12 / (a * a * a * a)));
         double I22 = b_foot * pow(d_foot, 3) / 12;
         double I33 = d_foot * pow(b_foot, 3) / 12; 
-        double I11 = I22 + I33;
+        // double I11 = I22 + I33;
+        double I11 = beta * long_side * pow(short_side, 3);
         Vector3d Xi(0, 0, 0);
         Vector3d Xf(dx, 0, 0);
         double L = (Xi - Xf).norm();
@@ -307,6 +341,17 @@ MatrixXd KBern3D_foot_TIM(double E, double d_foot, double b_foot, double dx, dou
         MatrixXd Kelem = MatRot.transpose() * K * MatRot;
         return Kelem;
     }
+
+extern "C" {
+    DLLEXPORT int KBern3D_foot_TIM_dNA_interface(double E, double d_foot, double b_foot, double dx, double EGratio,
+        double ni_str, double d_NA, double* result_array) {
+        MatrixXd Kelem = KBern3D_foot_TIM_dNA(E, d_foot, b_foot, dx, EGratio, ni_str, d_NA);
+        // std::cout << "Kelem" << std::endl;
+        // std::cout << Kelem << std::endl;
+        std::copy(Kelem.data(), Kelem.data() + Kelem.size(), result_array);
+        return 0;
+        };
+}
 
 void f_int_mind_dz_p(const VectorXd& u, VectorXd v, VectorXd w, VectorXd x, VectorXd y,
     const VectorXd& z, VectorXd* fdz, VectorXd* fdx, int nnodes_foot, double nis) {
