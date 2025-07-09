@@ -3,7 +3,7 @@ import os, platform, pkg_resources
 from ctypes import CDLL, c_int, c_double, c_char_p, POINTER
 import numpy as np
 import _ctypes
-import ASREpy.ground_deformation_models as gdm
+import ASREp.ground_deformation_models as gdm
 import matplotlib.pyplot as plt
 
 import importlib.util
@@ -102,7 +102,7 @@ spec.loader.exec_module(module)
 #         elif pltm == "win32":
 #             c_lib = CDLL(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 #                                     "bin", "win32", "ASRElib.dll"))
-#             # c_lib = CDLL(pkg_resources.resource_filename('ASREpy', 'ASREcpp//bin//win32//ASRElib.dll'))
+#             # c_lib = CDLL(pkg_resources.resource_filename('ASREp', 'ASREcpp//bin//win32//ASRElib.dll'))
 #             # c_lib.printName()
 #         c_lib.run.argtypes = [c_int, #nnode 
 #                               np.ctypeslib.ndpointer(dtype=np.float64), #meshX

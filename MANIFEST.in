@@ -1,2 +1,2 @@
-include ASREpy\ASREcpp\bin\win32\ASRElib.dll
-include ASREpy/ASREcpp/bin/macOS/libASRElib.dylib
+include ASREp\ASREcpp\bin\win32\ASRElib.dll
+include ASREp/ASREcpp/bin/macOS/libASRElib.dylib

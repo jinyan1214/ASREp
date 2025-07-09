@@ -3,7 +3,7 @@ import os, platform, pkg_resources
 from ctypes import CDLL, c_int, c_double, c_char_p, POINTER
 import numpy as np
 import _ctypes
-import ASREpy.ground_deformation_models as gdm
+import ASREp.ground_deformation_models as gdm
 import matplotlib.pyplot as plt
 
 import importlib.util

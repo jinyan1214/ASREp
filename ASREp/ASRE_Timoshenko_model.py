@@ -115,7 +115,7 @@ class ASRE_Timoshenko_model:
             else:
                 c_lib = None
                 message = f'ASRE is not precompiled for {pltm}, please compile the ASRE cpp library'
-            # c_lib = CDLL(pkg_resources.resource_filename('ASREpy', 'ASREcpp//bin//win32//ASRElib.dll'))
+            # c_lib = CDLL(pkg_resources.resource_filename('ASREp', 'ASREcpp//bin//win32//ASRElib.dll'))
             # c_lib.printName()
         if c_lib is None:
             raise ImportError(message)
