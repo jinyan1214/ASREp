@@ -4,7 +4,7 @@ cmake_minimum_required( VERSION 3.12 )
 # Define project name
 project(ASRElib VERSION 1.0)
 
-add_definitions(-DPRINT_INT_RESULTS=1)
+# add_definitions(-DPRINT_INT_RESULTS=1)
 
 # Declare an library
 add_library(ASRElibTimoBeam SHARED ASRElibTimoBeam.cpp)
