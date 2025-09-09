@@ -1,0 +1,13 @@
+function [ term ] = f_int_mind_dz_p(u,v,w,x,y,z,ni )
+
+%Eq(12) of Vaziri et al.
+
+script_int_mind
+
+term=(3-4.*ni).*(Y.*log(X+R1)+X.*log(Y+R1)...
+   +2.*Z1.*Tz1-2.*Z2.*Tz2)-2.*Z1.*Tz1...
+   +(2.*X.*Y.*z.*w)./R2.*(1./(Y.^2+Z2.^2)+1./(X.^2+Z2.^2))...
+   +(8.*(1-ni).^2-(3-4.*ni)).*(Y.*log(X+R2)...
+   +X.*log(Y+R2)+2.*Z2.*Tz2);
+end
+
