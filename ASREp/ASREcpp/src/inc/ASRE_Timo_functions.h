@@ -1184,9 +1184,9 @@ void elastoPlasticIterationLDLT(MatrixXd Stiffness, MatrixXd openKKfoot, VectorX
                 break;
             }
             //--------------------------monitor for debug----------------------------------------------
-            /*std::cout << "load step: " << i << " iter: " << iter << " residual1: "
-                << residual1(iter) << " residual3" << residual3(iter)
-                << " CImax: " << CImax << " perr: " << perr << std::endl;*/
+            // std::cout << "load step: " << i << " iter: " << iter << " residual1: "
+            //     << residual1(iter) << " residual3: " << residual3(iter)
+            //     << " CImax: " << CImax << " perr: " << perr << std::endl;
 
             //-----------------------------------------------------------------------------------------
             iter = iter + 1;
