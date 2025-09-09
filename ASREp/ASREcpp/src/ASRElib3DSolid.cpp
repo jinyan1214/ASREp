@@ -19,10 +19,9 @@ extern "C" {
         double* dispX, double* dispY, double* dispZ,
         double lim_t_int, double lim_c_int,
         const char* solver,
-        double* result_array,
-        int result_size
-        ) {
-            
+        double* result_array
+    ) {
+
         #ifdef PRINT_INT_RESULTS
         std::cout << "ASRE run starts" << std::endl;
         std::cout << "solver type" << std::endl;

@@ -438,4 +438,130 @@ void computeKKfootAndBodyForce(MatrixXd& XYZ,
     }
     return;
 }
+
+void shape3d(VectorXd nat, MatrixXd xyz, VectorXd* N, MatrixXd* dNdx){
+    MatrixXd natnode(3,8);
+    natnode << -1, +1, +1, -1, -1, +1, +1, -1,
+               -1, -1, +1, +1, -1, -1, +1, +1,
+               -1, -1, -1, -1, +1, +1, +1, +1;
+    VectorXd xi   = 0.5*(VectorXd::Ones(8) + natnode.row(0).transpose()*(nat(0)));
+    VectorXd eta  = 0.5*(VectorXd::Ones(8) + natnode(1,seqN(0,8)).transpose()*nat(1));
+    VectorXd zeta = 0.5*(VectorXd::Ones(8) + natnode(2,seqN(0,8)).transpose()*nat(2));
+    
+    (*N) = xi.cwiseProduct(eta).cwiseProduct(zeta);
+    // std::cout<<"T29: "<<std::endl;
+    MatrixXd dN = MatrixXd::Zero(3, 8);
+    dN(0, seqN(0, 8)) = 0.5*natnode.row(0).cwiseProduct(eta.transpose()).cwiseProduct(zeta.transpose());
+    dN(1, seqN(0, 8)) = 0.5*natnode.row(1).cwiseProduct(xi.transpose()).cwiseProduct(zeta.transpose());
+    dN(2, seqN(0, 8)) = 0.5*natnode.row(2).cwiseProduct(xi.transpose()).cwiseProduct(eta.transpose());    
+    // std::cout<<"T30: "<<std::endl;
+    MatrixXd J = dN*xyz;
+    
+    (*dNdx) = J.inverse()*dN;
+    // std::cout<<"T31: "<<std::endl;
+}
+
+extern "C" {
+    DLLEXPORT int calculateStrain(
+        int nnode, double* meshX, double* meshY, double* meshZ,
+        int nelem, int* elemNode1, int* elemNode2, int* elemNode3, int* elemNode4,
+        int* elemNode5, int* elemNode6, int* elemNode7, int* elemNode8,
+        double* disp, double* result_tensile, double* result_compressive
+    ){
+        // Form the mesh coordinates
+        MatrixXd wholeNodesXYZ = MatrixXd::Zero(nnode, 3);
+        for (int i = 0; i < nnode; i++) {
+            wholeNodesXYZ(i, 0) = meshX[i];
+            wholeNodesXYZ(i, 1) = meshY[i];
+            wholeNodesXYZ(i, 2) = meshZ[i];
+        }
+        // For the element connectivity
+        MatrixXi wholeElemNode = MatrixXi::Zero(nelem, 8);
+        for (int i = 0; i < nelem; i++) {
+            wholeElemNode(i, 0) = elemNode1[i];
+            wholeElemNode(i, 1) = elemNode2[i];     
+            wholeElemNode(i, 2) = elemNode3[i];     
+            wholeElemNode(i, 3) = elemNode4[i];     
+            wholeElemNode(i, 4) = elemNode5[i];     
+            wholeElemNode(i, 5) = elemNode6[i];     
+            wholeElemNode(i, 6) = elemNode7[i];     
+            wholeElemNode(i, 7) = elemNode8[i];
+        }
+        // Form the displacement vector
+        VectorXd u_s = VectorXd::Zero(nnode * 3);
+        for (int i = 0; i < nnode * 3; i++) {
+            u_s(i) = disp[i];
+        }
+        // Initialize strain storage
+        MatrixXd xyzLocal;
+        VectorXi nGlobal;
+        VectorXd N;
+        MatrixXd dNdx;
+        VectorXd centroNatCord = VectorXd::Zero(3);
+        MatrixXd eps(wholeElemNode.rows(), 6); 
+        VectorXd eps_principal_tens(wholeElemNode.rows());
+        VectorXd eps_principal_comp(wholeElemNode.rows()); 
+        // Compute strain at each element
+        for (int i=0; i<wholeElemNode.rows(); i++){
+            // for (int i=0; i<1; i++){    
+            xyzLocal = MatrixXd::Zero(8,3);
+            nGlobal = VectorXi::Zero(24);
+            for (int j=0; j<8; j++){
+                xyzLocal(j,0) = wholeNodesXYZ(wholeElemNode(i,j),0);
+                xyzLocal(j,1) = wholeNodesXYZ(wholeElemNode(i,j),1);
+                xyzLocal(j,2) = wholeNodesXYZ(wholeElemNode(i,j),2);
+                nGlobal(j*3+0) = 3*wholeElemNode(i,j);
+                nGlobal(j*3+1) = 3*wholeElemNode(i,j)+1;
+                nGlobal(j*3+2) = 3*wholeElemNode(i,j)+2;
+            }
+            //if (i == 0) {
+                //std::cout << "xyzLocal: " << xyzLocal << std::endl;
+                //std::cout << "nGlobal: " << nGlobal << std::endl;
+            //}
+            shape3d(centroNatCord, xyzLocal, &N, &dNdx);
+            // std::cout<< "N: "<< N <<std::endl;
+            // std::cout<< "dNdx: "<< dNdx <<std::endl;
+            MatrixXd B = MatrixXd::Zero(6, 24);
+            for (int j=0; j<8; j++){
+                B(0, j*3+0) = dNdx(0,j);
+                B(3, j*3+0) = dNdx(1,j);
+                B(5, j*3+0) = dNdx(2,j);
+                B(3, j*3+1) = dNdx(0,j);
+                B(1, j*3+1) = dNdx(1,j);
+                B(4, j*3+1) = dNdx(2,j);
+                B(5, j*3+2) = dNdx(0,j);
+                B(4, j*3+2) = dNdx(1,j);
+                B(2, j*3+2) = dNdx(2,j);
+            }
+                    
+            eps.row(i) = (B*u_s(nGlobal)).transpose();
+            // std::cout<< "u_s: "<< u_s(nGlobal) <<std::endl;
+            #ifdef PRINT_INT_RESULTS
+            if (i < 10){
+                std::cout << std::fixed;
+                std::cout << std::setprecision(10);
+                std::cout<< i << std::endl;
+                std::cout << "nGlobal: " << nGlobal << std::endl;
+                std::cout<<"xyzLocal: "<<xyzLocal<<std::endl;
+                std::cout<< "B: "<< B <<std::endl;
+                std::cout << "u_s(nGlobal): " << u_s(nGlobal) << std::endl;
+                std::cout<< "eps: "<< eps.row(i) <<std::endl;
+            }
+            #endif
+            MatrixXd eps_matrix(3,3);
+            eps_matrix << eps(i,0), eps(i,3), eps(i,5),
+                          eps(i,3), eps(i,1), eps(i,4),
+                          eps(i,5), eps(i,4), eps(i,2);
+            // std::cout<<eps_matrix<<std::endl;              
+            eps_principal_comp[i] = std::abs(eps_matrix.eigenvalues().real().minCoeff());
+            eps_principal_tens[i] = std::abs(eps_matrix.eigenvalues().real().maxCoeff());
+        }
+        std::copy(eps_principal_tens.data(), eps_principal_tens.data() + eps_principal_tens.size(), result_tensile);
+        std::copy(eps_principal_comp.data(), eps_principal_comp.data() + eps_principal_comp.size(), result_compressive);
+        // std::cout<<"eps_principal_tens
+        return 0;
+    }
+
+}
+
 #endif

@@ -88,6 +88,7 @@ model_el.set_interface_properties(
 start_time = time.time()
 print("Running elastic model...")
 model_el.run_model(u_x, u_y, u_z)
+model_el.calculate_principal_strain()
 end_time = time.time()
 print(f"Elastic model completed in {end_time - start_time:.2f} seconds.")
 
@@ -123,6 +124,7 @@ model_ep.set_interface_properties(
 start_time = time.time()
 print("Running elastoplastic model...")
 model_ep.run_model(u_x, u_y, u_z)
+model_ep.calculate_principal_strain()
 end_time = time.time()
 print(f"Elastoplastic model completed in {end_time - start_time:.2f} seconds.")
 
@@ -130,3 +132,17 @@ print(f"Elastoplastic model completed in {end_time - start_time:.2f} seconds.")
 with open(os.path.join(output_dir, 'model_ep.pkl'), 'wb') as f:
     pickle.dump(model_ep, f)
 print("Elastoplastic model results saved to 'model_ep.pkl'.")
+
+# Save principal strains to text files
+np.savetxt(os.path.join(output_dir, 'principal_strain_elastic.txt'), 
+           np.column_stack((model_el.result_tensile_ptr, model_el.result_compressive_ptr)))
+np.savetxt(os.path.join(output_dir, 'principal_strain_elastoplastic.txt'), 
+           np.column_stack((model_ep.result_tensile_ptr, model_ep.result_compressive_ptr)))
+print("Principal strains saved to 'principal_strain_elastic.txt' and 'principal_strain_elastoplastic.txt'.")
+
+# Save nodal displacements to text files
+np.savetxt(os.path.join(output_dir, 'nodal_displacement_elastic.txt'),
+           model_el.result_array_ptr)
+np.savetxt(os.path.join(output_dir, 'nodal_displacement_elastoplastic.txt'),
+           model_ep.result_array_ptr)
+print("Nodal displacements saved to 'nodal_displacement_elastic.txt' and 'nodal_displacement_elastoplastic.txt'.")

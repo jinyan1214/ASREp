@@ -141,6 +141,7 @@ class ASRE_3D_solid_model:
             # c_lib.printName()
         if c_lib is None:
             raise ImportError(message)
+        # Define the argument and return types of the run function
         c_lib.run.argtypes = [
             c_int, # nnode
             np.ctypeslib.ndpointer(dtype=np.float64), # meshX
@@ -177,9 +178,28 @@ class ASRE_3D_solid_model:
             c_double, # lim_c_int
             c_char_p, # solver
             POINTER(c_double), # result array
-            c_int # result_size
         ]
         c_lib.run.restype = c_int
+        # Define the argument and return types of the calculateStrain function
+        c_lib.calculateStrain.argtypes = [
+            c_int, # nnode
+            np.ctypeslib.ndpointer(dtype=np.float64), # dispX
+            np.ctypeslib.ndpointer(dtype=np.float64), # dispY
+            np.ctypeslib.ndpointer(dtype=np.float64), # dispZ
+            c_int, # nelem
+            np.ctypeslib.ndpointer(dtype=np.int32), # elemNode1
+            np.ctypeslib.ndpointer(dtype=np.int32), # elemNode2
+            np.ctypeslib.ndpointer(dtype=np.int32), # elemNode3
+            np.ctypeslib.ndpointer(dtype=np.int32), # elemNode4
+            np.ctypeslib.ndpointer(dtype=np.int32), # elemNode5
+            np.ctypeslib.ndpointer(dtype=np.int32), # elemNode6
+            np.ctypeslib.ndpointer(dtype=np.int32), # elemNode7
+            np.ctypeslib.ndpointer(dtype=np.int32), # elemNode8
+            np.ctypeslib.ndpointer(dtype=np.float64), # displacement
+            POINTER(c_double), # principal tensile strain
+            POINTER(c_double), # principal compressive strain
+        ]
+        c_lib.calculateStrain.restype = c_int
 
         return c_lib
 
@@ -215,6 +235,45 @@ class ASRE_3D_solid_model:
         self.mu_int = mu_int
         self.lim_t_int = lim_t_int
         self.lim_c_int = lim_c_int
+
+    def calculate_principal_strain(self):
+        """
+        Calculate the principal tensile and compressive strains of the building elements.
+        Returns
+        -------
+        bool
+            Return True if calculation is successful, False otherwise.
+        """
+        if not hasattr(self, 'result_array_ptr'):
+            raise RuntimeError('No displacement results found. Please run the model first.')
+        result_size = self.building_elements.shape[0] * 3
+        self.result_tensile_ptr = (c_double * result_size)(*([0]*result_size))
+        self.result_compressive_ptr = (c_double * result_size)(*([0]*result_size))
+        try:
+            result = self.asre_dll.calculateStrain(
+                self.building_node_coords.shape[0],
+                self.building_node_coords[:,0],
+                self.building_node_coords[:,1],
+                self.building_node_coords[:,2],
+                self.building_elements.shape[0],
+                self.building_elements[:,0],
+                self.building_elements[:,1],
+                self.building_elements[:,2],
+                self.building_elements[:,3],
+                self.building_elements[:,4],
+                self.building_elements[:,5],
+                self.building_elements[:,6],
+                self.building_elements[:,7],
+                self.result_array_ptr,
+                self.result_tensile_ptr,
+                self.result_compressive_ptr
+            )
+            self.result_tensile_ptr = np.array(list(self.result_tensile_ptr))
+            self.result_compressive_ptr = np.array(list(self.result_compressive_ptr))
+            return True
+        except:
+            self.release_cdll_handle()
+            raise RuntimeError('ASRE_3D_solid_model failed to calculate principal strains using the ASRE cpp library')
 
     def run_model(self, dispX, dispY, dispZ):
         """
@@ -277,8 +336,7 @@ class ASRE_3D_solid_model:
                 self.lim_t_int,
                 self.lim_c_int,
                 self.solver,
-                self.result_array_ptr,
-                self.result_size
+                self.result_array_ptr
             )
 
             self.result = result

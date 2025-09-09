@@ -1,4 +1,4 @@
-function PlotFieldonDefoMesh(coordinates,nodes,factor,depl,component) 
+function PlotFieldonDefoMesh(coordinates,nodes,factor,depl,component,fieldName) 
 %--------------------------------------------------------------------------
 % Purpose:
 %         To plot the profile of a component on deformed mesh
@@ -64,7 +64,7 @@ if dimension == 3   % For 3D plots
         rotate3d on ;
         axis off ;
         % Colorbar Setting
-        SetColorbar
+        SetColorbar(fieldName)
     elseif nnel==8  % solid in 3D
         fm = [1 2 6 5; 2 3 7 6; 3 4 8 7; 4 1 5 8; 1 2 3 4; 5 6 7 8];
         XYZ = cell(1,nel) ;
@@ -87,7 +87,7 @@ if dimension == 3   % For 3D plots
 %         set(gca,'XTick',[]) ; set(gca,'YTick',[]); set(gca,'ZTick',[]) ;
         axis on
         % Colorbar Setting
-        SetColorbar
+        SetColorbar(fieldName)
     end
 elseif dimension == 2           % For 2D plots
     ux = depl(:,1) ;
@@ -110,7 +110,7 @@ elseif dimension == 2           % For 2D plots
     title('Profile of UX on deformed Mesh') ;      
     axis off ;
     % Colorbar Setting
-    SetColorbar
+    SetColorbar(fieldName)
 end
 
            
