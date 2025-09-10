@@ -16,7 +16,7 @@ PlotFieldonDefoMesh(wholeNodesXYZ, wholeElem2n, 100,...
     [el_u(1:3:end),el_u(2:3:end),el_u(3:3:end)],el_strains(:,1)*1000000,...
     'Principal tensile strains($\mu\varepsilon$)')
 daspect([1 1 1])
-saveas(gcf, './output/strain_plot_elastic.pdf')
+saveas(gcf, './output/strain_plot_elastic.png')
 saveas(gcf, './output/strain_plot_elastic.fig')
 % Plot elastoplastic strain
 figure
@@ -24,7 +24,7 @@ PlotFieldonDefoMesh(wholeNodesXYZ, wholeElem2n, 100,...
     [ep_u(1:3:end),ep_u(2:3:end),ep_u(3:3:end)],ep_strains(:,1)*1000000,...
     'Principal tensile strains($\mu\varepsilon$)')
 daspect([1 1 1])
-saveas(gcf, './output/strain_plot_elastoplastic.pdf')
+saveas(gcf, './output/strain_plot_elastoplastic.png')
 saveas(gcf, './output/strain_plot_elastoplastic.fig')
 
 

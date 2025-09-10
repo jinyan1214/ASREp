@@ -18,7 +18,7 @@ extern "C" {
         double Gs, double nus, double mu_int,
         double* dispX, double* dispY, double* dispZ,
         double lim_t_int, double lim_c_int,
-        const char* solver,
+        const char* solver, int print_iteration,
         double* result_array
     ) {
 
@@ -229,6 +229,29 @@ extern "C" {
             << duration.count() << " microseconds" << std::endl;
         #endif
 
+        // Convert the units to KN and mm for better numerical stability
+        FLEX = FLEX * 1000000.0;
+        ucat = ucat * 1000.0;
+        openQ = openQ / 1000.0;
+        openKKfootSparse = openKKfootSparse / 1000000.0;
+        lim_c_int = lim_c_int / 1000.0; 
+        lim_t_int = lim_t_int / 1000.0;
+
+        #ifdef PRINT_INT_RESULTS
+        std::cout << "FLEX" << std::endl;
+        std::cout << FLEX.block(0,0,50,50) << std::endl;
+        std::cout << "ucat" << std::endl;
+        std::cout << ucat(seqN(0, 50)) << std::endl;
+        std::cout << "openQ" << std::endl;
+        std::cout << openQ(seqN(0, 50)) << std::endl;
+        std::cout << "openKKfootSparse" << std::endl;
+        std::cout << openKKfootSparse.block(0,0,50,50) << std::endl;
+        std::cout << "lim_c_int" << std::endl;
+        std::cout << lim_c_int << std::endl;
+        std::cout << "lim_t_int" << std::endl;
+        std::cout << lim_t_int << std::endl;
+        #endif
+
         // Assemble the matrices in ASRE solver
         MatrixXd Ks = MatrixXd::Zero(newNodeDOF.size(), newNodeDOF.size());
         MatrixXd FLEX_inv = FLEX.inverse();
@@ -249,6 +272,10 @@ extern "C" {
         duration = duration_cast<microseconds>(stop - start);
         std::cout << "Time taken by exterSolver: "
             << duration.count() << " microseconds" << std::endl;
+        std::cout << "u_P_el(groundNodeDOF)" << std::endl;
+        std::cout << u_P_el(groundNodeDOF) << std::endl;
+        std::cout << "patchArea" << std::endl;
+        std::cout << patchArea(seqN(0,50)) << std::endl;
         #endif
         VectorXd Kstar = VectorXd::Zero(newNodeDOF.size());
         MatrixXd Lstar = MatrixXd::Zero(newNodeDOF.size(), newNodeDOF.size());
@@ -302,9 +329,12 @@ extern "C" {
                                     FLEX, LstarSparse, uinc, ucat, openQ,
                                     mu_int, lim_t_int, lim_c_int,
                                     patchArea,
-                                    uip, groundNodeDOF1, groundNodeDOF2, groundNodeDOF3, groundNodeDOF);
+                                    uip, groundNodeDOF1, groundNodeDOF2, 
+                                    groundNodeDOF3, groundNodeDOF,
+                                    print_iteration);
             }
         VectorXd disp = uinc - u_P_el;
+        disp = disp * 0.001; // convert back to m
         VectorXd disp_complete = VectorXd::Zero(nnode * 3);
         #ifdef PRINT_INT_RESULTS                                
         std::cout << "create_full_vector: "<< std::endl;

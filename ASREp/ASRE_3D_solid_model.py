@@ -177,6 +177,7 @@ class ASRE_3D_solid_model:
             c_double, # lim_t_int
             c_double, # lim_c_int
             c_char_p, # solver
+            c_int, # print_iteration
             POINTER(c_double), # result array
         ]
         c_lib.run.restype = c_int
@@ -246,7 +247,7 @@ class ASRE_3D_solid_model:
         """
         if not hasattr(self, 'result_array_ptr'):
             raise RuntimeError('No displacement results found. Please run the model first.')
-        result_size = self.building_elements.shape[0] * 3
+        result_size = self.building_elements.shape[0]
         self.result_tensile_ptr = (c_double * result_size)(*([0]*result_size))
         self.result_compressive_ptr = (c_double * result_size)(*([0]*result_size))
         try:
@@ -275,7 +276,7 @@ class ASRE_3D_solid_model:
             self.release_cdll_handle()
             raise RuntimeError('ASRE_3D_solid_model failed to calculate principal strains using the ASRE cpp library')
 
-    def run_model(self, dispX, dispY, dispZ):
+    def run_model(self, dispX, dispY, dispZ, print_iteration = 0):
         """
         Run the SSI model under greenfield displacements
 
@@ -287,10 +288,13 @@ class ASRE_3D_solid_model:
             The greenfield displacement in Y direction. Unit: m
         dispZ : float
             The greenfield displacement in Z direction. Unit: m
+        print_iteration : int, optional
+            If print_iteration == 1, print the iteration information during the model run.
+            Default is 0, no print.
         Returns
         -------
         bool
-            Return Ture if run success and False if unsuccess 
+            Return True if run success and False if unsuccess
             self.building_dispX is the beam disp in longitudinal direction
             self.building_dispY is the beam disp in transverse direction
             self.building_dispZ is the beam disp in vertical direction
@@ -336,6 +340,7 @@ class ASRE_3D_solid_model:
                 self.lim_t_int,
                 self.lim_c_int,
                 self.solver,
+                print_iteration,
                 self.result_array_ptr
             )
 

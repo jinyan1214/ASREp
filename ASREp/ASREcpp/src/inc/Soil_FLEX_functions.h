@@ -542,7 +542,6 @@ void computeFLEX16int(MatrixXi& elem2nInter, MatrixXd& interNodesXYZ,
     MatrixXd connect_xy = MatrixXd::Zero(interNodesXYZ.rows(), 8);
     patchArea = VectorXd::Zero(interNodesXYZ.rows());
     for (int i=0; i < elem2nInter.rows(); i++){
-        // std::cout << "processing element: " << i << " / " << elem2nInter.rows() << std::endl;    
         double meanX = interNodesXYZ(elem2nInter(i, seqN(0,4)), 0).mean();
         double meanY = interNodesXYZ(elem2nInter(i, seqN(0,4)), 1).mean();
         Vector3d vecA = interNodesXYZ(elem2nInter(i,2),all) - interNodesXYZ(elem2nInter(i,0),all);

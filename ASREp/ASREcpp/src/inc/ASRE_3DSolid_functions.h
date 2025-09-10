@@ -179,7 +179,8 @@ void elastoPlasticIterationLDLT(SparseMatrix<double>& Stiffness,SparseMatrix<dou
                             double mu, double lim_t, double lim_c,
                             VectorXd& patchArea,
                             VectorXd& uip, std::vector<int>& groundNodeDOF1, std::vector<int>& groundNodeDOF2, 
-                            std::vector<int>& groundNodeDOF3, std::vector<int>& groundNodeDOF){
+                            std::vector<int>& groundNodeDOF3, std::vector<int>& groundNodeDOF,
+                            int print_iteration){
     #ifdef PRINT_INT_RESULTS                                
     std::cout << "ep iteration starts: "<< std::endl;
     #endif
@@ -215,17 +216,34 @@ void elastoPlasticIterationLDLT(SparseMatrix<double>& Stiffness,SparseMatrix<dou
          residual1 = VectorXd::Zero(n_iter);
          residual3 = VectorXi::Zero(n_iter);
          du = VectorXd::Zero(ucat.size());
+         ducap = VectorXd::Zero(ucat.size());
+         duip = VectorXd::Zero(ucat.size());
          double smallResidualNo = 0;
          double residual_prev1 = 0;
          while (iter < n_iter){
             //  std::cout<<"Kstar: "<<std::endl;
             // std::cout<<Kstar(groundNodeDOF).head(50)<<std::endl;
             rhs = Kstar.cwiseProduct(ducap + ducat + duip);
-            // std::cout<<"rhs: "<<std::endl;
+            // if (iter == 0 & i == 1){
+            //     std::cout << "iter" << iter << " load step: "<< i << std::endl;
+            //     std::cout << "rhs "<< std::endl;
+            //     std::cout << rhs(groundNodeDOF).head(50)<< std::endl;
+            //     std::cout << "ducap "<< std::endl;
+            //     std::cout << ducap(groundNodeDOF).head(50)<< std::endl;
+            //     std::cout << "duip "<< std::endl;
+            //     std::cout << duip(groundNodeDOF).head(50)<< std::endl;
+            //     std::cout << "ducat "<< std::endl;
+            //     std::cout << ducat(groundNodeDOF).head(50)<< std::endl;
+            // }
             // std::cout<<rhs(groundNodeDOF).head(50)<<std::endl;
             // petscDenseMatCGSolveVector(Stiffness, rhs, du, du);
             //-------------------solve with petsc CG-----------------------
             du = iterSolver.solve(rhs);
+            // if (iter == 0 & i == 1){
+            //     std::cout << "iter" << iter << " load step: "<< i << std::endl;
+            //     std::cout << "du 1 "<< std::endl;
+            //     std::cout << du(groundNodeDOF).head(50)<< std::endl;
+            // }
             // std::cout<<"du: "<<std::endl;
             // std::cout<<du.head(50)<<std::endl;
             //-------------------------------------------------------------
@@ -274,7 +292,11 @@ void elastoPlasticIterationLDLT(SparseMatrix<double>& Stiffness,SparseMatrix<dou
             df(groundNodeDOF2) = df_h_y;
             df(groundNodeDOF3) = df_v;
             du = (du.cwiseAbs().array()<1e-8).select(0, du);
-            // std::cout<<iter<<" iteration, du: "<<du<<std::endl;
+            // if (iter == 0 & i == 1){
+            //     std::cout << "iter" << iter << " load step: "<< i << std::endl;
+            //     std::cout << "du 2 "<< std::endl;
+            //     std::cout << du(groundNodeDOF).head(50)<< std::endl;
+            // }
             VectorXd du_soil_el = VectorXd::Zero(df.size());
             du_soil_el(groundNodeDOF) = LL*(df(groundNodeDOF));
             // std::cout<<"df(groundNodeDOF): "<<std::endl;
@@ -313,17 +335,26 @@ void elastoPlasticIterationLDLT(SparseMatrix<double>& Stiffness,SparseMatrix<dou
             react_ep_3dof = react_ep(groundNodeDOF3);
             residual1(iter) = (Stiffness*uinc - (P_el + Kstar.cwiseProduct(ucap+ducat*((double)i+1.0)+uip))).norm();
             residual3(iter) = (react_ep_3dof.array()>0.5).count();
-            if (CImax<0.05 && perr<0.0001 && residual1(iter)<0.0001 && residual3(iter)==0){
+            if (CImax<0.05 && perr<0.0001 && residual1(iter)<0.00001 && residual3(iter)==0){
                 uinc_prev = uinc;
                 uip_prev = uip;
                 ucap_prev = ucap;
-                // std::cout<<uinc(groundNodeDOF).head(50)<<std::endl;
+                if (print_iteration == 1){
+                    std::cout<<"load step: "<< i <<" iter: "<< iter <<" residual1: "
+                            <<residual1(iter)<< " residual3" << residual3(iter) 
+                            <<" CImax: "<<CImax<<" perr: "<<perr<<std::endl;
+                    }
                 break;
             }
-            if (residual1(iter)<1e-6) {
+            if (residual1(iter)<1e-7) {
                 uinc_prev = uinc;
                 uip_prev = uip;
                 ucap_prev = ucap;
+                if (print_iteration == 1){
+                    std::cout<<"load step: "<< i <<" iter: "<< iter <<" residual1: "
+                            <<residual1(iter)<< " residual3" << residual3(iter) 
+                            <<" CImax: "<<CImax<<" perr: "<<perr<<std::endl;
+                    }
                 break;
             }
             if (iter ==n_iter-1){
@@ -341,18 +372,18 @@ void elastoPlasticIterationLDLT(SparseMatrix<double>& Stiffness,SparseMatrix<dou
                 smallResidualNo = 0;
                 residual_prev1 = residual1(iter);
             }
-            if (smallResidualNo>=10 && CImax<1e-4){
-                uinc_prev = uinc;
-                uip_prev = uip;
-                ucap_prev = ucap;
-                break;
-            }
-            if (residual1(iter)<0.00015 && CImax<1e-7){
-                uinc_prev = uinc;
-                uip_prev = uip;
-                ucap_prev = ucap;
-                break;
-            }
+            // if (smallResidualNo>=10 && CImax<1e-4){
+            //     uinc_prev = uinc;
+            //     uip_prev = uip;
+            //     ucap_prev = ucap;
+            //     break;
+            // }
+            // if (residual1(iter)<0.00015 && CImax<1e-7){
+            //     uinc_prev = uinc;
+            //     uip_prev = uip;
+            //     ucap_prev = ucap;
+            //     break;
+            // }
 //--------------------------monitor for debug----------------------------------------------
             // if ((iter%20) ==0){
             //     // uinc_prev = uinc;
@@ -368,13 +399,23 @@ void elastoPlasticIterationLDLT(SparseMatrix<double>& Stiffness,SparseMatrix<dou
             //     // std::cout<<"residual3"<<residual3.segment(monitor_ind*20, monitor_ind*20+20)<<std::endl;
             //     monitor_ind++;
             // }
-            #ifdef PRINT_INT_RESULTS
-            // return;
-            std::cout<<"load step: "<< i <<" iter: "<< iter <<" residual1: "
-                     <<residual1(iter)<< " residual3" << residual3(iter) 
-                     <<" CImax: "<<CImax<<" perr: "<<perr<<std::endl;
+            #ifdef PRINT_INT_RESULTS                                
+            if (i < 2 & iter < 2){
+                std::cout << "iter"<< iter << " load step: "<< i << std::endl;
+                std::cout << "du: "<< std::endl;
+                std::cout << du(groundNodeDOF).head(50)<< std::endl;
+                std::cout << "duip: "<< std::endl;
+                std::cout << duip(groundNodeDOF).head(50)<< std::endl;
+                std::cout << "ducap: "<< std::endl;
+                std::cout << ducap(groundNodeDOF).head(50)<< std::endl;
+            }
             #endif
             
+            if (print_iteration == 1){
+                std::cout<<"load step: "<< i <<" iter: "<< iter <<" residual1: "
+                        <<residual1(iter)<< " residual3" << residual3(iter) 
+                        <<" CImax: "<<CImax<<" perr: "<<perr<<std::endl;
+                }
 //-----------------------------------------------------------------------------------------
             iter = iter + 1;
 
@@ -536,6 +577,13 @@ extern "C" {
                     
             eps.row(i) = (B*u_s(nGlobal)).transpose();
             // std::cout<< "u_s: "<< u_s(nGlobal) <<std::endl;
+            MatrixXd eps_matrix(3,3);
+            eps_matrix << eps(i,0), eps(i,3), eps(i,5),
+                          eps(i,3), eps(i,1), eps(i,4),
+                          eps(i,5), eps(i,4), eps(i,2);
+            // std::cout<<eps_matrix<<std::endl;              
+            eps_principal_comp[i] = std::abs(eps_matrix.eigenvalues().real().minCoeff());
+            eps_principal_tens[i] = std::abs(eps_matrix.eigenvalues().real().maxCoeff());
             #ifdef PRINT_INT_RESULTS
             if (i < 10){
                 std::cout << std::fixed;
@@ -546,15 +594,12 @@ extern "C" {
                 std::cout<< "B: "<< B <<std::endl;
                 std::cout << "u_s(nGlobal): " << u_s(nGlobal) << std::endl;
                 std::cout<< "eps: "<< eps.row(i) <<std::endl;
+                std::cout<< "eps_matrix: "<< eps_matrix <<std::endl;
+                std::cout<< "eps_principal_comp: "<< eps_principal_comp[i] <<std::endl;
+                std::cout<< "eps_principal_tens: "<< eps_principal_tens[i] <<std::endl;
+                std::cout<< "eigenvalues: "<< eps_matrix.eigenvalues().real().transpose() <<std::endl;
             }
             #endif
-            MatrixXd eps_matrix(3,3);
-            eps_matrix << eps(i,0), eps(i,3), eps(i,5),
-                          eps(i,3), eps(i,1), eps(i,4),
-                          eps(i,5), eps(i,4), eps(i,2);
-            // std::cout<<eps_matrix<<std::endl;              
-            eps_principal_comp[i] = std::abs(eps_matrix.eigenvalues().real().minCoeff());
-            eps_principal_tens[i] = std::abs(eps_matrix.eigenvalues().real().maxCoeff());
         }
         std::copy(eps_principal_tens.data(), eps_principal_tens.data() + eps_principal_tens.size(), result_tensile);
         std::copy(eps_principal_comp.data(), eps_principal_comp.data() + eps_principal_comp.size(), result_compressive);
