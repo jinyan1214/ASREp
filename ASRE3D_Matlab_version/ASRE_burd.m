@@ -1,6 +1,13 @@
 clear
 close all
-load('../MasonMesh/burd_mat_20230522T170507.mat')
+load('../Examples/3DBearingWalls/input/burd_mat_20250901T162943.mat')
+% If using Burd 2022 or Yiu 2019 FEM simulated greenfield displacement
+% Yiu_GF = load('../Examples/3DBearingWalls/input/Yiu_GF.mat');
+% Yiu_GF = Yiu_GF.Yiu_GF;
+
+wholeNodesXYZ(:,3) = wholeNodesXYZ(:,3) - min(wholeNodesXYZ(:,3));
+interNodesXYZ(:,3) = 0;
+
 PlotMesh(wholeNodesXYZ, wholeElem2n, 0)
 PlotMesh(interNodesXYZ(:, 1:2), elem2nInter, 0); daspect([1, 1, 1])
 
@@ -15,10 +22,10 @@ num_incr_TUNNEL = 20;
 num_incr_P = 10;
 width_Kx = 0.57;%Pickhaver=0.75/Yiu=0.57
 width_Ky = 0.57;
-tunnel_z0 = 23;%Pickhaver=10/Yiu=23
+tunnel_z0 = 22;%Pickhaver=10/Yiu=23-1 to model the embedment of foundation
 tunnel_d = 11;%Pickhaver=5/Yiu=11
 tunnel_delta = 0.3;%S_tunnelFace/S_max
-tunnel_ys = -200;%location of tunnel face 
+tunnel_ys = -50;%location of tunnel face 
 tunnel_yf = 500;%location of tunnel start point
 Vltp = 1.65; %Pickhaver=1.36925/Yiu=1.65
 masonry_nu = 0.2;
@@ -30,10 +37,10 @@ timber_E = masonry_E;
 timber_nu = 0.2;
 timber_G = timber_E/2/(1+timber_nu);
 timber_rho = masonry_rho;
-nus = 0.49;
+nus = 0.2;
+Gs = 6000000;
+Es = Gs*2*(1+nus);
 mu = 0.3;
-Es = 14.5*10^6;
-Gs = Es/2/(1+nus);
 %%
 NoOfElem = size(wholeElem2n,1);
 eleRho = repmat([masonry_rho],1,NoOfElem);
@@ -63,12 +70,10 @@ ox = x(newNode);
 oy = y(newNode);
 oz = z(newNode);
 
-% Uffx = zeros(length(newNode),1); 
-% Uffx(oz == min(oz)) = Uffx;
-% Uffy = zeros(length(newNode),1);
-% Uffy(oz == min(oz)) = Uffy;
-% Uffz = zeros(length(newNode),1);
-% Uffz(oz == min(oz)) = Uffz;
+% Use Burd/Yiu GF
+Uffz(oz==min(z)) = (interp1(Yiu_GF(:,1), Yiu_GF(:,2)/(-1000), (ox(oz==min(z))).'))';
+Uffx(oz==min(z)) = (ox(oz==min(z))).'./(tunnel_z0-(oz(oz==min(z))).').*Uffz(oz==min(z)); 
+Uffy = zeros(size(Uffz));
 
 figure; 
 plot3(ox(oz==min(z)), oy(oz==min(z)), Uffz(oz==min(z)),'x')
@@ -198,7 +203,7 @@ Es = Es*ones(size(realNodes));
 Gs = Es./2./(1+nus);
 FLEX = computeFLEX16int_v4_test(interNodesXYZ,...
     elem2nInter(~dummyElemBool,:), connect_xy, Gs, nus);
-
+FLEX = (FLEX + FLEX')*0.5;
 FLEX = FLEX*1000000;
 Ks_groundDOF = inv(FLEX);
 ucat = ucat*1000;
@@ -752,169 +757,5 @@ wallElemInd = [1:timberElemIndex(1)-1,...
     timberElemIndex(2)+1:length(wholeElem2n)];
 PlotFieldonDefoMesh([x', y', z'], wholeElem2n(wallElemInd,:),10, [u_s(1:3:end),u_s(2:3:end),u_s(3:3:end)],eps_principal(wallElemInd,3)*1000000)
 daspect([1 1 1])
-disp({'dv at corner 1 to 4: ', u_bottom(18*3), u_bottom(33*3), u_bottom(49*3), u_bottom(64*3)})
-disp({'dv total at corner 1 to 4: ', u_bottom_final(18*3), u_bottom_final(33*3), u_bottom_final(49*3), u_bottom_final(64*3)})
-%% Compare with monitoring 2D
-dist2wall = [ 22.858, 25.736, 43.157, 47.801, 36.943, 35.863, 45.911, 45.018];
-dv_ASRE = [u_bottom(143*3), u_bottom(28*3), u_bottom(56*3), u_bottom(68*3),...
-    u_bottom(87*3), u_bottom(100*3), u_bottom(114*3), u_bottom(120*3)]/1000;
-% dv_ASRE2 = [u_s(1576*3+18*3), u_s(1576*3+33*3),...
-%     u_s(1576*3+49*3), u_s(1576*3+64*3)];
-dv_ASRE_final = [u_bottom_final(143*3), u_bottom_final(28*3), u_bottom_final(56*3), u_bottom_final(68*3),...
-    u_bottom_final(87*3), u_bottom_final(100*3), u_bottom_final(114*3), u_bottom_final(120*3)]/1000;
-
-dv_monitor_base = [-14.00,	-13.00,	-8.00,	-11.00, -10, -9.5, -8, -8]/1000;%20160928
-dv_monitor1 = [-85.00,	-73.00,	-35.00,	-37.00, -53, -49, -32, -32]/1000-dv_monitor_base;%20171212
-dv_monitor2 = [-135, -120, -72, -73, -96, -93, -66, -69]/1000; % 20200623
-dv_monitor3 = [-152, -135, -85, -89, -110, -109, -79, -83]/1000; %20210111
-
-xplot = linspace(0, 50, 100);
-yplot = -1.14./(xplot/H/eta + 0.39).* 1/0.46/sqrt(2*pi).* ...
-    exp(-(log(xplot/H/eta+0.39)-0.095).^2/(2*0.46^2))*dvmaxOverH*H;
-figure
-plot(xplot, yplot)
-hold on 
-plot(dist2wall, dv_ASRE, 'x')
-% plot(dist2wall, dv_ASRE_final, '^')
-plot(dist2wall, dv_monitor1 - (dv_monitor3-dv_monitor2)/16.5*14.5, 'o')
-legend('Greenfield', 'ASRE', 'Monitor', 'Location', 'eastoutside')
-%% Compare with monitoring 3D
-figure
-hold on 
-plot3(ox(oz==min(z)), oy(oz==min(z)), Uffz(oz==min(z)),'x')
-plot3(ox(oz==min(z)), oy(oz==min(z)), u_bottom(3:3:end)/1000,'x')
-xlabel('x'); ylabel('y'); zlabel('z (m)')
-% plot3(ox(bottom_nodes([143,28,56,68,87,100,114,120])),oy(bottom_nodes([143,28,56,68,87,100,114,120])), dv_ASRE, 'x')
-plot3(ox(bottom_nodes([143,28,56,68,87,100,114,120])),oy(bottom_nodes([143,28,56,68,87,100,114,120])),...
-    dv_monitor1 - (dv_monitor3-dv_monitor2)/16.5*14.5, 'o')
-view(3)
-legend('Greenfield', 'ASRE', 'Monitor', 'Location', 'eastoutside')
-%% Son&Cording 3D calculation
-% u = u_total;
-% nodeInd = find(ox==-20 & oy==-5 & oz==0);
-% ua = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 0 & oy==-5 & oz==0);
-% ub = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 0 & oy==5 & oz==0);
-% uc = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== -20 & oy==5 & oz==0);
-% ud = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% floorStrain(1,:) = sonAndCording3Dstrain(ua, ub, uc, ud, 20, 10, 0, 1);
-% 
-% nodeInd = find(ox== 0 & oy==-5 & oz==0);
-% ua = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 20 & oy==-5 & oz==0);
-% ub = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 20 & oy== 5 & oz==0);
-% uc = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 0 & oy== 5 & oz==0);
-% ud = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% floorStrain(2,:) = sonAndCording3Dstrain(ua, ub, uc, ud, 20, 10, 0, 1);
-% 
-% nodeInd = find(ox==-20 & oy==-5 & oz==4.5);
-% ua = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 0 & oy==-5 & oz==4.5);
-% ub = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 0 & oy==5 & oz==4.5);
-% uc = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== -20 & oy==5 & oz==4.5);
-% ud = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% floorStrain(3,:) = sonAndCording3Dstrain(ua, ub, uc, ud, 20, 10, 0, 1);
-% nodeInd = find(ox==-20 & oy==-5 & oz==8.5);
-% ua = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 0 & oy==-5 & oz==8.5);
-% ub = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 0 & oy==5 & oz==8.5);
-% uc = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== -20 & oy==5 & oz==8.5);
-% ud = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% floorStrain(5,:) = sonAndCording3Dstrain(ua, ub, uc, ud, 20, 10, 0, 1);
-% nodeInd = find(ox== 0 & oy==-5 & oz==4.5);
-% ua = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 20 & oy==-5 & oz==4.5);
-% ub = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 20 & oy== 5 & oz==4.5);
-% uc = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 0 & oy== 5 & oz==4.5);
-% ud = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% floorStrain(4,:) = sonAndCording3Dstrain(ua, ub, uc, ud, 20, 10, 0, 1);
-% nodeInd = find(ox== 0 & oy==-5 & oz==8.5);
-% ua = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 20 & oy==-5 & oz==8.5);
-% ub = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 20 & oy== 5 & oz==8.5);
-% uc = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 0 & oy== 5 & oz==8.5);
-% ud = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% floorStrain(6,:) = sonAndCording3Dstrain(ua, ub, uc, ud, 20, 10, 0, 1);
-% 
-% nodeInd = find(ox== -20 & oy==-5 & oz==0.5);
-% ua = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== -20 & oy== 5 & oz==0.5);
-% ub = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== -20 & oy== 5 & oz==8.5);
-% uc = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== -20 & oy== -5 & oz==8.5);
-% ud = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% EndWallStrain(1,:) = sonAndCording3Dstrain(ua, ub, uc, ud, 10, 8, 1, 2);
-% nodeInd = find(ox== 0 & oy==-5 & oz==0.5);
-% ua = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 0 & oy== 5 & oz==0.5);
-% ub = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 0 & oy== 5 & oz==8.5);
-% uc = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 0 & oy== -5 & oz==8.5);
-% ud = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% EndWallStrain(2,:) = sonAndCording3Dstrain(ua, ub, uc, ud, 10, 8, 1, 2);
-% nodeInd = find(ox== 20 & oy==-5 & oz==0.5);
-% ua = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 20 & oy== 5 & oz==0.5);
-% ub = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 20 & oy== 5 & oz==8.5);
-% uc = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% nodeInd = find(ox== 20 & oy== -5 & oz==8.5);
-% ud = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-% EndWallStrain(3,:) = sonAndCording3Dstrain(ua, ub, uc, ud, 10, 8, 1, 2);
-% xa = [-20, 0];
-% xb = [0, 20];
-% xa = [-20, -17.75, -16.25, -14.75, -13.25, -11, -9, -6.75, -5.25, -3.75, -2.25];
-% xa = [xa, [-20, -17.75, -16.25, -14.75, -13.25, -11, -9, -6.75, -5.25, -3.75, -2.25]+20];
-% xb = [-17.75, -16.25, -14.75, -13.25, -11, -9, -6.75, -5.25, -3.75, -2.25, 0];
-% xb = [xb, [-17.75, -16.25, -14.75, -13.25, -11, -9, -6.75, -5.25, -3.75, -2.25, 0]+20];
-% xc = xb;
-% xd = xa;
-% ya = ones(size(xa))*(-5);
-% yb = ones(size(xa))*(-5);
-% yc = ones(size(xa))*(-5);
-% yd = ones(size(xa))*(-5);
-% za = ones(size(xa))*(0.5);
-% za(6) = 3.5;
-% zb = ones(size(xa))*(0.5);
-% zb(6) = 3.5;
-% zc = ones(size(xa))*(8.5);
-% zc(6) = 5.5;
-% zd = ones(size(xa))*(8.5);
-% zd(6) = 5.5;
-% xa = [xa, xa];
-% xb = [xb, xb];
-% xc = [xc, xc];
-% xd = [xd, xd];
-% ya = [ya, ya+10];
-% yb = [yb, yb+10];
-% yc = [yc, yc+10];
-% yd = [yd, yd+10];
-% za = [za, za];
-% zb = [zb, zb];
-% zc = [zc, zc];
-% zd = [zd, zd];
-% for i = 1:length(xa)
-%     nodeInd = find(ox== xa(i) & oy== ya(i) & oz==za(i));
-%     ua = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-%     nodeInd = find(ox== xb(i) & oy== yb(i) & oz==zb(i));
-%     ub = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-%     nodeInd = find(ox== xc(i) & oy== yc(i) & oz==zc(i));
-%     uc = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-%     nodeInd = find(ox== xd(i) & oy== yd(i) & oz==zd(i));
-%     ud = [u(nodeInd*3-2), u(nodeInd*3-1), u(nodeInd*3-0)];
-%     openWallStrain(i,:) = sonAndCording3Dstrain(ua, ub, uc, ud, xb(i)-xa(i), 8, 1, 1);
-% end
+% disp({'dv at corner 1 to 4: ', u_bottom(18*3), u_bottom(33*3), u_bottom(49*3), u_bottom(64*3)})
+% disp({'dv total at corner 1 to 4: ', u_bottom_final(18*3), u_bottom_final(33*3), u_bottom_final(49*3), u_bottom_final(64*3)})
