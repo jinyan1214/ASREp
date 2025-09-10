@@ -85,7 +85,7 @@ def ground_disp_Zhao_2023(x, y, z, vl, d, z0, ys, yf, k, delta):
     """
 
     # Calculate max vertical displacement.
-    uz_max = (np.pi * vl * d**2) / (4 * np.sqrt(2 * np.pi) * k * (z0 - z))
+    uz_max = - (np.pi * vl * d**2) / (4 * np.sqrt(2 * np.pi) * k * (z0 - np.min(z)))
 
     y0 = -norm.ppf(delta) * k * z0
 
